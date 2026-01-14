@@ -10,6 +10,8 @@ using DnDMapBuilder.Data.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -108,6 +110,8 @@ builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
 
 var app = builder.Build();
+
+app.MapDefaultEndpoints();
 
 // Apply migrations on startup
 using (var scope = app.Services.CreateScope())

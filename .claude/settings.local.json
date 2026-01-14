@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(move \"DnDMapBuilder.Aspire.ServiceDefaults.csproj\" \"src\\DnDMapBuilder.Aspire.ServiceDefaults\"\" && move \"Extensions.cs\" \"srcDnDMapBuilder.Aspire.ServiceDefaults\"\")"
-    ],
-    "deny": [],
-    "ask": []
-  }
-}

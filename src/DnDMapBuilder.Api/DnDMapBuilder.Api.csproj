@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DnDMapBuilder.Application\DnDMapBuilder.Application.csproj" />
+    <ProjectReference Include="..\DnDMapBuilder.Aspire.ServiceDefaults\DnDMapBuilder.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\DnDMapBuilder.Contracts\DnDMapBuilder.Contracts.csproj" />
     <ProjectReference Include="..\DnDMapBuilder.Data\DnDMapBuilder.Data.csproj" />
   </ItemGroup>

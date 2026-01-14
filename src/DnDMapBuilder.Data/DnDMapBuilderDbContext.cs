@@ -111,7 +111,8 @@ public class DnDMapBuilderDbContext : DbContext
     private void SeedData(ModelBuilder modelBuilder)
     {
         var adminId = "admin-seed-id";
-        
+        var seedDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         modelBuilder.Entity<User>().HasData(
             new User
             {
@@ -122,8 +123,8 @@ public class DnDMapBuilderDbContext : DbContext
                 PasswordHash = "$2a$11$XxvU8qZ5yP.yxKxQ8zHW7O8qKFdN1LQkGxKvYxGZ.hQvZNzVZY3.S",
                 Role = "admin",
                 Status = "approved",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate
             }
         );
     }
