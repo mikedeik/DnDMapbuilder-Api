@@ -1,0 +1,491 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.AppHost\\DnDMapBuilder.Aspire.AppHost.csproj": {}
+  },
+  "projects": {
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\DnDMapBuilder.Api.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\DnDMapBuilder.Api.csproj",
+        "projectName": "DnDMapBuilder.Api",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\DnDMapBuilder.Api.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\DnDMapBuilder.Application.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\DnDMapBuilder.Application.csproj"
+              },
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj"
+              },
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "dependencies": {
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.AspNetCore.OpenApi": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[7.2.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\DnDMapBuilder.Application.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\DnDMapBuilder.Application.csproj",
+        "projectName": "DnDMapBuilder.Application",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\DnDMapBuilder.Application.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Application\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj"
+              },
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "dependencies": {
+            "BCrypt.Net-Next": {
+              "target": "Package",
+              "version": "[4.0.3, )"
+            },
+            "Microsoft.IdentityModel.Tokens": {
+              "target": "Package",
+              "version": "[8.3.0, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[8.3.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.AppHost\\DnDMapBuilder.Aspire.AppHost.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.AppHost\\DnDMapBuilder.Aspire.AppHost.csproj",
+        "projectName": "DnDMapBuilder.Aspire.AppHost",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.AppHost\\DnDMapBuilder.Aspire.AppHost.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.AppHost\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\DnDMapBuilder.Api.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Api\\DnDMapBuilder.Api.csproj"
+              },
+              "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\DnDMapBuilder.Aspire.ServiceDefaults.csproj": {
+                "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\DnDMapBuilder.Aspire.ServiceDefaults.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "dependencies": {
+            "Aspire.Hosting.AppHost": {
+              "target": "Package",
+              "version": "[13.1.0, )"
+            },
+            "Aspire.Hosting.SqlServer": {
+              "target": "Package",
+              "version": "[13.1.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\DnDMapBuilder.Aspire.ServiceDefaults.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\DnDMapBuilder.Aspire.ServiceDefaults.csproj",
+        "projectName": "DnDMapBuilder.Aspire.ServiceDefaults",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\DnDMapBuilder.Aspire.ServiceDefaults.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Aspire.ServiceDefaults\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "dependencies": {
+            "Microsoft.Extensions.Http.Resilience": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.Extensions.ServiceDiscovery": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            },
+            "OpenTelemetry.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            },
+            "OpenTelemetry.Instrumentation.AspNetCore": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            },
+            "OpenTelemetry.Instrumentation.Http": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            },
+            "OpenTelemetry.Instrumentation.Runtime": {
+              "target": "Package",
+              "version": "[1.10.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj",
+        "projectName": "DnDMapBuilder.Contracts",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\DnDMapBuilder.Contracts.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Contracts\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj",
+        "projectName": "DnDMapBuilder.Data",
+        "projectPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\DnDMapBuilder.Data.csproj",
+        "packagesPath": "C:\\Users\\miked\\.nuget\\packages\\",
+        "outputPath": "D:\\Projects\\Rider\\DnDMapBuilderApi\\src\\DnDMapBuilder.Data\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\miked\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net10.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {},
+          "https://nuget.pkg.github.com/wixtoolset/index.json": {}
+        },
+        "frameworks": {
+          "net10.0": {
+            "targetAlias": "net10.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "all"
+        },
+        "SdkAnalysisLevel": "10.0.100"
+      },
+      "frameworks": {
+        "net10.0": {
+          "targetAlias": "net10.0",
+          "dependencies": {
+            "Microsoft.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.SqlServer": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Tools": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Users\\miked\\.dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

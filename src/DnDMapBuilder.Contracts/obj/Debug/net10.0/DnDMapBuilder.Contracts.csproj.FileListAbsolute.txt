@@ -1,0 +1,11 @@
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\bin\Debug\net10.0\DnDMapBuilder.Contracts.deps.json
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\bin\Debug\net10.0\DnDMapBuilder.Contracts.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\bin\Debug\net10.0\DnDMapBuilder.Contracts.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.AssemblyInfoInputs.cache
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.AssemblyInfo.cs
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.csproj.CoreCompileInputs.cache
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\refint\DnDMapBuilder.Contracts.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\DnDMapBuilder.Contracts.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Contracts\obj\Debug\net10.0\ref\DnDMapBuilder.Contracts.dll

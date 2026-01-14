@@ -1,0 +1,17 @@
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Application.deps.json
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Application.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Application.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Contracts.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Data.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Contracts.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\bin\Debug\net10.0\DnDMapBuilder.Data.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.csproj.AssemblyReference.cache
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.GeneratedMSBuildEditorConfig.editorconfig
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.AssemblyInfoInputs.cache
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.AssemblyInfo.cs
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.csproj.CoreCompileInputs.cache
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBu.46B47A21.Up2Date
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\refint\DnDMapBuilder.Application.dll
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\DnDMapBuilder.Application.pdb
+D:\Projects\Rider\DnDMapBuilderApi\src\DnDMapBuilder.Application\obj\Debug\net10.0\ref\DnDMapBuilder.Application.dll
