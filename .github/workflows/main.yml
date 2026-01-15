@@ -146,7 +146,7 @@ jobs:
         port: ${{ secrets.SERVER_PORT || 22 }}
         script: |
           # Check if container is running
-          docker ps | grep dnd-api
+          sudo docker ps | grep dnd-api
 
           # Check container logs
-          docker logs dnd-api --tail 50
+          sudo docker logs dnd-api --tail 50
