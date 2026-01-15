@@ -121,7 +121,7 @@ jobs:
           sudo docker stop dnd-api || true
           sudo docker rm dnd-api || true
 
-          # Run new container with environment variables
+          # Run new container with environment variables small
           sudo docker run -d \
             --name dnd-api \
             --restart unless-stopped \
