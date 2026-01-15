@@ -10,7 +10,6 @@ on:
 env:
   DOTNET_VERSION: '10.0.x'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # Job 1: Build and Test
@@ -45,9 +44,16 @@ jobs:
       contents: read
       packages: write
 
+    outputs:
+      image-name: ${{ steps.image-name.outputs.lowercase }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Convert repository name to lowercase
+      id: image-name
+      run: echo "lowercase=${GITHUB_REPOSITORY@L}" >> $GITHUB_OUTPUT
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -63,7 +69,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.lowercase }}
         tags: |
           type=ref,event=branch
           type=sha,prefix={{branch}}-
@@ -91,18 +97,21 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Deploy to server via SSH
+      env:
+        IMAGE_NAME: ${{ needs.build-docker.outputs.image-name }}
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SERVER_PORT || 22 }}
+        envs: IMAGE_NAME
         script: |
           # Login to GitHub Container Registry
-          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
           # Pull the latest image
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker pull ghcr.io/${IMAGE_NAME}:latest
 
           # Stop and remove old container
           docker stop dnd-api || true
@@ -122,7 +131,7 @@ jobs:
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
             -v /path/to/certs:/app/certs:ro \
             --network dnd-network \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${IMAGE_NAME}:latest
 
           # Clean up old images
           docker image prune -f
