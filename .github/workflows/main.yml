@@ -111,14 +111,14 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
           # Pull the latest image
-          docker pull ghcr.io/${IMAGE_NAME}:latest
+          sudo docker pull ghcr.io/${IMAGE_NAME}:latest
 
           # Stop and remove old container
-          docker stop dnd-api || true
-          docker rm dnd-api || true
+          sudo docker stop dnd-api || true
+          sudo docker rm dnd-api || true
 
           # Run new container with environment variables
-          docker run -d \
+          sudo docker run -d \
             --name dnd-api \
             --restart unless-stopped \
             -p 5000:80 \
@@ -134,7 +134,7 @@ jobs:
             ghcr.io/${IMAGE_NAME}:latest
 
           # Clean up old images
-          docker image prune -f
+          sudo docker image prune -f
 
     - name: Verify deployment
       uses: appleboy/ssh-action@v1.0.0
