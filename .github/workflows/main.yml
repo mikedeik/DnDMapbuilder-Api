@@ -121,14 +121,13 @@ jobs:
           sudo docker stop dnd-api || true
           sudo docker rm dnd-api || true
 
-          # Run new container with environment variables small
+          # Run new container with environment variables
           sudo docker run -d \
             --name dnd-api \
             --restart unless-stopped \
-            -p 5000:80 \
-            -p 5001:443 \
+            -p 5000:8080 \
             -e ASPNETCORE_ENVIRONMENT=Production \
-            -e ASPNETCORE_URLS="https://+:443;http://+:80" \
+            -e ASPNETCORE_URLS="http://+:8080" \
             -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
             -e JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
             -e JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
