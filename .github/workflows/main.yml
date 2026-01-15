@@ -111,6 +111,9 @@ jobs:
           # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+          # Create Docker network if it doesn't exist
+          sudo docker network create dnd-network 2>/dev/null || true
+
           # Pull the latest image
           sudo docker pull ghcr.io/${IMAGE_NAME}:latest
 
@@ -130,7 +133,6 @@ jobs:
             -e JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
             -e JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
-            -v /path/to/certs:/app/certs:ro \
             --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest
 
