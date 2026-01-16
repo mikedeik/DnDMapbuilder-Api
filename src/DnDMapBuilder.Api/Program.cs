@@ -113,11 +113,11 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
-// Apply migrations on startup
+// Apply migrations and seed admin user on startup
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DnDMapBuilderDbContext>();
-    db.Database.Migrate();
+    await DbInitializer.InitializeAsync(db);
 }
 
 // Configure the HTTP request pipeline

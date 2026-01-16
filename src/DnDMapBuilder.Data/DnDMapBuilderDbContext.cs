@@ -104,28 +104,7 @@ public class DnDMapBuilderDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // Seed default admin user
-        SeedData(modelBuilder);
-    }
-
-    private void SeedData(ModelBuilder modelBuilder)
-    {
-        var adminId = "admin-seed-id";
-        var seedDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        modelBuilder.Entity<User>().HasData(
-            new User
-            {
-                Id = adminId,
-                Username = "admin",
-                Email = "admin@dndmapbuilder.com",
-                // Password: Admin123!
-                PasswordHash = "$2a$11$XxvU8qZ5yP.yxKxQ8zHW7O8qKFdN1LQkGxKvYxGZ.hQvZNzVZY3.S",
-                Role = "admin",
-                Status = "approved",
-                CreatedAt = seedDate,
-                UpdatedAt = seedDate
-            }
-        );
+        // Note: Admin user is seeded via DbInitializer at runtime, not via migrations
+        // This allows the password to be read from environment variables securely
     }
 }

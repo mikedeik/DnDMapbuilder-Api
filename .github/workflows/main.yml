@@ -132,6 +132,8 @@ jobs:
             -e JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
             -e JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
+            -e ADMIN_DEFAULT_PASSWORD="${{ secrets.ADMIN_DEFAULT_PASSWORD }}" \
+            -e ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
             --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest
 

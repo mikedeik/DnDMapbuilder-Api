@@ -4,6 +4,7 @@ using DnDMapBuilder.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DnDMapBuilder.Data.Migrations
 {
     [DbContext(typeof(DnDMapBuilderDbContext))]
-    partial class DnDMapBuilderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260116231211_UpdateAdminPasswordHash")]
+    partial class UpdateAdminPasswordHash
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -246,6 +249,19 @@ namespace DnDMapBuilder.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = "admin-seed-id",
+                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Email = "admin@dndmapbuilder.com",
+                            PasswordHash = "$2a$11$X4v3HBSSmstzKiv2vzPypu2WcKMh/e8Wttppq67PBM/5jalYdz2Kq",
+                            Role = "admin",
+                            Status = "approved",
+                            UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Username = "admin"
+                        });
                 });
 
             modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
