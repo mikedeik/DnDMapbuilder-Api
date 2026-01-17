@@ -17,6 +17,7 @@ services:
       - "5001:443"
     volumes:
       - ./certs:/app/certs:ro
+      - ./uploads:/app/wwwroot/uploads
     networks:
       - dnd-network
 

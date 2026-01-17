@@ -121,6 +121,9 @@ jobs:
           sudo docker stop dnd-api || true
           sudo docker rm dnd-api || true
 
+          # Create uploads directory on host if it doesn't exist
+          mkdir -p ~/dnd-api-uploads
+
           # Run new container with environment variables
           sudo docker run -d \
             --name dnd-api \
@@ -134,6 +137,7 @@ jobs:
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
             -e ADMIN_DEFAULT_PASSWORD="${{ secrets.ADMIN_DEFAULT_PASSWORD }}" \
             -e ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
+            -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest
 

@@ -135,10 +135,18 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Serve static files from wwwroot/uploads at /api/uploads path
+// Ensure wwwroot directory exists for static file serving
+var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+if (!Directory.Exists(wwwrootPath))
+{
+    Directory.CreateDirectory(wwwrootPath);
+}
+
+// Serve static files from wwwroot at /api path
 // This matches the frontend's URL construction: BASE_URL + imageUrl = /api + /uploads/...
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootPath),
     RequestPath = "/api"
 });
 
