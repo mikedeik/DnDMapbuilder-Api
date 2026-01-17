@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using DnDMapBuilder.Application.Interfaces;
@@ -7,8 +8,12 @@ using DnDMapBuilder.Contracts.Responses;
 
 namespace DnDMapBuilder.Api.Controllers;
 
+/// <summary>
+/// Controller for authentication operations (login, register).
+/// </summary>
+[ApiVersion("1.0")]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

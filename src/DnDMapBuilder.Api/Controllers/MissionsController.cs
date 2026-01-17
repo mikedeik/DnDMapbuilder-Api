@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,9 +12,10 @@ namespace DnDMapBuilder.Api.Controllers;
 /// <summary>
 /// Controller for managing missions within campaigns.
 /// </summary>
+[ApiVersion("1.0")]
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class MissionsController : ControllerBase
 {
     private readonly IMissionService _missionService;

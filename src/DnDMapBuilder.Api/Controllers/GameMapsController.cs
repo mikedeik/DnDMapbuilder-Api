@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,9 +12,10 @@ namespace DnDMapBuilder.Api.Controllers;
 /// <summary>
 /// Controller for managing game maps and map images.
 /// </summary>
+[ApiVersion("1.0")]
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class GameMapsController : ControllerBase
 {
     private readonly IGameMapService _mapService;

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,9 +12,10 @@ namespace DnDMapBuilder.Api.Controllers;
 /// <summary>
 /// Controller for managing token definitions and token images.
 /// </summary>
+[ApiVersion("1.0")]
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class TokensController : ControllerBase
 {
     private readonly ITokenDefinitionService _tokenService;

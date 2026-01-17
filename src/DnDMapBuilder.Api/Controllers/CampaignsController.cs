@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -8,9 +9,13 @@ using DnDMapBuilder.Contracts.Responses;
 
 namespace DnDMapBuilder.Api.Controllers;
 
+/// <summary>
+/// Controller for managing campaigns.
+/// </summary>
+[ApiVersion("1.0")]
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class CampaignsController : ControllerBase
 {
     private readonly ICampaignService _campaignService;
