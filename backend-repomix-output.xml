@@ -41,6 +41,8 @@ The content is organized as follows:
 
 <directory_structure>
 .claude/
+  commands/
+    execute_prompt_plan.md
   settings.local.json
 .github/
   workflows/
@@ -71,6 +73,7 @@ src/
     Services/
       AuthService.cs
       CampaignService.cs
+      FileStorageService.cs
       GameMapAndTokenServices.cs
       JwtService.cs
       MissionService.cs
@@ -98,6 +101,10 @@ src/
       20260116231211_UpdateAdminPasswordHash.Designer.cs
       20260116232059_RemoveSeedData.cs
       20260116232059_RemoveSeedData.Designer.cs
+      20260117102707_AddImageFileStorageMetadata.cs
+      20260117102707_AddImageFileStorageMetadata.Designer.cs
+      20260117104633_SaveImageFiles.cs
+      20260117104633_SaveImageFiles.Designer.cs
       DnDMapBuilderDbContextModelSnapshot.cs
     Repositories/
       IRepositories.cs
@@ -113,6 +120,7 @@ dotnet-tools.json
 FILE_STRUCTURE.md
 generate-certs.sh
 PROJECT_SUMMARY.md
+prompt_plan.md
 QUICKSTART.md
 README.md
 SECURITY.md
@@ -123,6 +131,14 @@ verify-structure.sh
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path=".claude/commands/execute_prompt_plan.md">
+## You are a senior .NET engineer implementing a new feature
+- Read the @../prompt_plan.md file and identify pending steps
+- Create a new branch with the feature name from the context session if it does not exist. You only work on this branch
+- Implement the step and when done update the step status to done.
+- continue with the next step.
+</file>
 
 <file path=".github/FIX_DOCKER_PERMISSIONS.md">
 # Fixing Docker Permission Issues on Your Server
@@ -1330,255 +1346,6 @@ public class CampaignsController : ControllerBase
 }
 </file>
 
-<file path="src/DnDMapBuilder.Api/Controllers/OtherControllers.cs">
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using DnDMapBuilder.Application.Interfaces;
-using DnDMapBuilder.Contracts.DTOs;
-using DnDMapBuilder.Contracts.Requests;
-using DnDMapBuilder.Contracts.Responses;
-
-namespace DnDMapBuilder.Api.Controllers;
-
-[Authorize]
-[ApiController]
-[Route("api/[controller]")]
-public class MissionsController : ControllerBase
-{
-    private readonly IMissionService _missionService;
-
-    public MissionsController(IMissionService missionService)
-    {
-        _missionService = missionService;
-    }
-
-    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<MissionDto>>> GetMission(string id)
-    {
-        var mission = await _missionService.GetByIdAsync(id, GetUserId());
-        
-        if (mission == null)
-        {
-            return NotFound(new ApiResponse<MissionDto>(false, null, "Mission not found."));
-        }
-
-        return Ok(new ApiResponse<MissionDto>(true, mission));
-    }
-
-    [HttpGet("campaign/{campaignId}")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<MissionDto>>>> GetMissionsByCampaign(string campaignId)
-    {
-        var missions = await _missionService.GetByCampaignIdAsync(campaignId, GetUserId());
-        return Ok(new ApiResponse<IEnumerable<MissionDto>>(true, missions));
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<MissionDto>>> CreateMission([FromBody] CreateMissionRequest request)
-    {
-        try
-        {
-            var mission = await _missionService.CreateAsync(request, GetUserId());
-            return CreatedAtAction(nameof(GetMission), new { id = mission.Id }, new ApiResponse<MissionDto>(true, mission, "Mission created."));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-    }
-
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<MissionDto>>> UpdateMission(string id, [FromBody] UpdateMissionRequest request)
-    {
-        var mission = await _missionService.UpdateAsync(id, request, GetUserId());
-        
-        if (mission == null)
-        {
-            return NotFound(new ApiResponse<MissionDto>(false, null, "Mission not found."));
-        }
-
-        return Ok(new ApiResponse<MissionDto>(true, mission, "Mission updated."));
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteMission(string id)
-    {
-        var result = await _missionService.DeleteAsync(id, GetUserId());
-        
-        if (!result)
-        {
-            return NotFound(new ApiResponse<bool>(false, false, "Mission not found."));
-        }
-
-        return Ok(new ApiResponse<bool>(true, true, "Mission deleted."));
-    }
-}
-
-[Authorize]
-[ApiController]
-[Route("api/[controller]")]
-public class MapsController : ControllerBase
-{
-    private readonly IGameMapService _mapService;
-
-    public MapsController(IGameMapService mapService)
-    {
-        _mapService = mapService;
-    }
-
-    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id)
-    {
-        var map = await _mapService.GetByIdAsync(id, GetUserId());
-        
-        if (map == null)
-        {
-            return NotFound(new ApiResponse<GameMapDto>(false, null, "Map not found."));
-        }
-
-        return Ok(new ApiResponse<GameMapDto>(true, map));
-    }
-
-    [HttpGet("mission/{missionId}")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId)
-    {
-        var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId());
-        return Ok(new ApiResponse<IEnumerable<GameMapDto>>(true, maps));
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> CreateMap([FromBody] CreateMapRequest request)
-    {
-        try
-        {
-            var map = await _mapService.CreateAsync(request, GetUserId());
-            return CreatedAtAction(nameof(GetMap), new { id = map.Id }, new ApiResponse<GameMapDto>(true, map, "Map created."));
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return Forbid(ex.Message);
-        }
-    }
-
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> UpdateMap(string id, [FromBody] UpdateMapRequest request)
-    {
-        var map = await _mapService.UpdateAsync(id, request, GetUserId());
-        
-        if (map == null)
-        {
-            return NotFound(new ApiResponse<GameMapDto>(false, null, "Map not found."));
-        }
-
-        return Ok(new ApiResponse<GameMapDto>(true, map, "Map updated."));
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteMap(string id)
-    {
-        var result = await _mapService.DeleteAsync(id, GetUserId());
-        
-        if (!result)
-        {
-            return NotFound(new ApiResponse<bool>(false, false, "Map not found."));
-        }
-
-        return Ok(new ApiResponse<bool>(true, true, "Map deleted."));
-    }
-}
-
-[Authorize]
-[ApiController]
-[Route("api/[controller]")]
-public class TokensController : ControllerBase
-{
-    private readonly ITokenDefinitionService _tokenService;
-
-    public TokensController(ITokenDefinitionService tokenService)
-    {
-        _tokenService = tokenService;
-    }
-
-    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
-
-    [HttpGet]
-    public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens()
-    {
-        var tokens = await _tokenService.GetUserTokensAsync(GetUserId());
-        return Ok(new ApiResponse<IEnumerable<TokenDefinitionDto>>(true, tokens));
-    }
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> GetToken(string id)
-    {
-        var token = await _tokenService.GetByIdAsync(id, GetUserId());
-        
-        if (token == null)
-        {
-            return NotFound(new ApiResponse<TokenDefinitionDto>(false, null, "Token not found."));
-        }
-
-        return Ok(new ApiResponse<TokenDefinitionDto>(true, token));
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> CreateToken([FromBody] CreateTokenDefinitionRequest request)
-    {
-        var token = await _tokenService.CreateAsync(request, GetUserId());
-        return CreatedAtAction(nameof(GetToken), new { id = token.Id }, new ApiResponse<TokenDefinitionDto>(true, token, "Token created."));
-    }
-
-    [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> UpdateToken(string id, [FromBody] UpdateTokenDefinitionRequest request)
-    {
-        var token = await _tokenService.UpdateAsync(id, request, GetUserId());
-        
-        if (token == null)
-        {
-            return NotFound(new ApiResponse<TokenDefinitionDto>(false, null, "Token not found."));
-        }
-
-        return Ok(new ApiResponse<TokenDefinitionDto>(true, token, "Token updated."));
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteToken(string id)
-    {
-        var result = await _tokenService.DeleteAsync(id, GetUserId());
-        
-        if (!result)
-        {
-            return NotFound(new ApiResponse<bool>(false, false, "Token not found."));
-        }
-
-        return Ok(new ApiResponse<bool>(true, true, "Token deleted."));
-    }
-}
-</file>
-
-<file path="src/DnDMapBuilder.AppHost/AppHost.cs">
-var builder = DistributedApplication.CreateBuilder(args);
-
-// Disable IDE run session integration (use direct process launching)
-builder.Configuration["RunSession:UseIdeRunSession"] = "false";
-
-var sql = builder.AddSqlServer("Database")
-    .WithLifetime(ContainerLifetime.Persistent)
-    .AddDatabase("dndmapbuilder");
-
-builder.AddProject<Projects.DnDMapBuilder_Api>("dndmapapi")
-    .WithReference(sql)
-    .WithEnvironment("ConnectionStrings__DefaultConnection", sql)
-    .WaitFor(sql)
-    .WithEnvironment("MIGRATIONS_EXECUTE", "true");
-
-builder.Build().Run();
-</file>
-
 <file path="src/DnDMapBuilder.AppHost/appsettings.json">
 {
   "Logging": {
@@ -1611,146 +1378,6 @@ builder.Build().Run();
     </ItemGroup>
 
 </Project>
-</file>
-
-<file path="src/DnDMapBuilder.Application/Interfaces/IServices.cs">
-using DnDMapBuilder.Contracts.DTOs;
-using DnDMapBuilder.Contracts.Requests;
-using DnDMapBuilder.Contracts.Responses;
-
-namespace DnDMapBuilder.Application.Interfaces;
-
-public interface IAuthService
-{
-    Task<AuthResponse?> RegisterAsync(RegisterRequest request);
-    Task<AuthResponse?> LoginAsync(LoginRequest request);
-    Task<bool> ApproveUserAsync(string userId, bool approved);
-    Task<IEnumerable<UserDto>> GetPendingUsersAsync();
-}
-
-public interface ICampaignService
-{
-    Task<CampaignDto?> GetByIdAsync(string id, string userId);
-    Task<IEnumerable<CampaignDto>> GetUserCampaignsAsync(string userId);
-    Task<CampaignDto> CreateAsync(CreateCampaignRequest request, string userId);
-    Task<CampaignDto?> UpdateAsync(string id, UpdateCampaignRequest request, string userId);
-    Task<bool> DeleteAsync(string id, string userId);
-}
-
-public interface IMissionService
-{
-    Task<MissionDto?> GetByIdAsync(string id, string userId);
-    Task<IEnumerable<MissionDto>> GetByCampaignIdAsync(string campaignId, string userId);
-    Task<MissionDto> CreateAsync(CreateMissionRequest request, string userId);
-    Task<MissionDto?> UpdateAsync(string id, UpdateMissionRequest request, string userId);
-    Task<bool> DeleteAsync(string id, string userId);
-}
-
-public interface IGameMapService
-{
-    Task<GameMapDto?> GetByIdAsync(string id, string userId);
-    Task<IEnumerable<GameMapDto>> GetByMissionIdAsync(string missionId, string userId);
-    Task<GameMapDto> CreateAsync(CreateMapRequest request, string userId);
-    Task<GameMapDto?> UpdateAsync(string id, UpdateMapRequest request, string userId);
-    Task<bool> DeleteAsync(string id, string userId);
-}
-
-public interface ITokenDefinitionService
-{
-    Task<TokenDefinitionDto?> GetByIdAsync(string id, string userId);
-    Task<IEnumerable<TokenDefinitionDto>> GetUserTokensAsync(string userId);
-    Task<TokenDefinitionDto> CreateAsync(CreateTokenDefinitionRequest request, string userId);
-    Task<TokenDefinitionDto?> UpdateAsync(string id, UpdateTokenDefinitionRequest request, string userId);
-    Task<bool> DeleteAsync(string id, string userId);
-}
-
-public interface IJwtService
-{
-    string GenerateToken(string userId, string email, string role);
-    string? ValidateToken(string token);
-}
-</file>
-
-<file path="src/DnDMapBuilder.Application/Mappings/MappingExtensions.cs">
-using DnDMapBuilder.Contracts.DTOs;
-using DnDMapBuilder.Data.Entities;
-
-namespace DnDMapBuilder.Application.Mappings;
-
-public static class MappingExtensions
-{
-    public static UserDto ToDto(this User user)
-    {
-        return new UserDto(
-            user.Id,
-            user.Username,
-            user.Email,
-            user.Role,
-            user.Status
-        );
-    }
-
-    public static TokenDefinitionDto ToDto(this TokenDefinition token)
-    {
-        return new TokenDefinitionDto(
-            token.Id,
-            token.Name,
-            token.ImageUrl,
-            token.Size,
-            token.Type,
-            token.UserId
-        );
-    }
-
-    public static MapTokenInstanceDto ToDto(this MapTokenInstance instance)
-    {
-        return new MapTokenInstanceDto(
-            instance.Id,
-            instance.TokenId,
-            instance.X,
-            instance.Y
-        );
-    }
-
-    public static GameMapDto ToDto(this GameMap map)
-    {
-        return new GameMapDto(
-            map.Id,
-            map.Name,
-            map.ImageUrl,
-            map.Rows,
-            map.Cols,
-            map.Tokens.Select(t => t.ToDto()).ToList(),
-            map.GridColor,
-            map.GridOpacity,
-            map.MissionId
-        );
-    }
-
-    public static MissionDto ToDto(this Mission mission)
-    {
-        return new MissionDto(
-            mission.Id,
-            mission.Name,
-            mission.Description,
-            mission.Maps.Select(m => m.ToDto()).ToList(),
-            mission.CampaignId
-        );
-    }
-
-    public static CampaignDto ToDto(this Campaign campaign)
-    {
-        return new CampaignDto(
-            campaign.Id,
-            campaign.Name,
-            campaign.Description,
-            campaign.Missions.Select(m => m.ToDto()).ToList(),
-            campaign.OwnerId,
-            campaign.CreatedAt,
-            campaign.UpdatedAt
-        );
-    }
-}
 </file>
 
 <file path="src/DnDMapBuilder.Application/Services/AuthService.cs">
@@ -1949,6 +1576,152 @@ public class CampaignService : ICampaignService
 
         await _campaignRepository.DeleteAsync(id);
         return true;
+    }
+}
+</file>
+
+<file path="src/DnDMapBuilder.Application/Services/FileStorageService.cs">
+using Microsoft.Extensions.Logging;
+using DnDMapBuilder.Application.Interfaces;
+
+namespace DnDMapBuilder.Application.Services;
+
+public class LocalFileStorageService : IFileStorageService
+{
+    private readonly string _baseStoragePath;
+    private readonly string _basePublicUrl;
+    private readonly ILogger<LocalFileStorageService> _logger;
+
+    public LocalFileStorageService(string baseStoragePath, string basePublicUrl, ILogger<LocalFileStorageService> logger)
+    {
+        _baseStoragePath = baseStoragePath ?? throw new ArgumentNullException(nameof(baseStoragePath));
+        _basePublicUrl = basePublicUrl ?? throw new ArgumentNullException(nameof(basePublicUrl));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        EnsureStorageDirectoriesExist();
+    }
+
+    public async Task<string> UploadAsync(Stream file, string fileName, string contentType, string storageCategory)
+    {
+        if (file == null || file.Length == 0)
+            throw new ArgumentException("File stream is empty", nameof(file));
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new ArgumentException("File name is required", nameof(fileName));
+
+        if (string.IsNullOrWhiteSpace(contentType))
+            throw new ArgumentException("Content type is required", nameof(contentType));
+
+        if (string.IsNullOrWhiteSpace(storageCategory))
+            throw new ArgumentException("Storage category is required", nameof(storageCategory));
+
+        // Validate MIME type
+        var allowedMimeTypes = new[] { "image/png", "image/jpeg", "image/webp" };
+        if (!allowedMimeTypes.Contains(contentType.ToLower()))
+            throw new InvalidOperationException($"MIME type '{contentType}' is not allowed");
+
+        // Generate file ID with extension
+        var fileExtension = Path.GetExtension(fileName);
+        if (string.IsNullOrWhiteSpace(fileExtension))
+            fileExtension = GetExtensionFromMimeType(contentType);
+
+        var fileId = $"{Guid.NewGuid()}{fileExtension}";
+        var categoryPath = Path.Combine(_baseStoragePath, storageCategory);
+        var fullFilePath = Path.Combine(categoryPath, fileId);
+
+        // Ensure directory exists
+        if (!Directory.Exists(categoryPath))
+            Directory.CreateDirectory(categoryPath);
+
+        try
+        {
+            // Save file to disk using streaming (no full buffering)
+            using (var fileStream = new FileStream(fullFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+            {
+                await file.CopyToAsync(fileStream);
+            }
+
+            _logger.LogInformation($"File uploaded successfully: {fileId} to category {storageCategory}");
+            return fileId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error uploading file: {ex.Message}");
+            if (File.Exists(fullFilePath))
+                File.Delete(fullFilePath);
+            throw;
+        }
+    }
+
+    public string GetPublicUrl(string fileId, string storageCategory)
+    {
+        if (string.IsNullOrWhiteSpace(fileId))
+            throw new ArgumentException("File ID is required", nameof(fileId));
+
+        if (string.IsNullOrWhiteSpace(storageCategory))
+            throw new ArgumentException("Storage category is required", nameof(storageCategory));
+
+        // Prevent path traversal attacks
+        if (fileId.Contains("..") || fileId.Contains("/") || fileId.Contains("\\"))
+            throw new InvalidOperationException("Invalid file ID");
+
+        return $"{_basePublicUrl}/{storageCategory}/{fileId}";
+    }
+
+    public async Task<bool> DeleteAsync(string fileId, string storageCategory)
+    {
+        if (string.IsNullOrWhiteSpace(fileId))
+            throw new ArgumentException("File ID is required", nameof(fileId));
+
+        if (string.IsNullOrWhiteSpace(storageCategory))
+            throw new ArgumentException("Storage category is required", nameof(storageCategory));
+
+        // Prevent path traversal attacks
+        if (fileId.Contains("..") || fileId.Contains("/") || fileId.Contains("\\"))
+            throw new InvalidOperationException("Invalid file ID");
+
+        var categoryPath = Path.Combine(_baseStoragePath, storageCategory);
+        var fullFilePath = Path.Combine(categoryPath, fileId);
+
+        try
+        {
+            if (File.Exists(fullFilePath))
+            {
+                File.Delete(fullFilePath);
+                _logger.LogInformation($"File deleted successfully: {fileId} from category {storageCategory}");
+                return true;
+            }
+
+            _logger.LogWarning($"File not found for deletion: {fileId} in category {storageCategory}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error deleting file: {ex.Message}");
+            throw;
+        }
+    }
+
+    private void EnsureStorageDirectoriesExist()
+    {
+        var categories = new[] { "maps", "tokens" };
+        foreach (var category in categories)
+        {
+            var categoryPath = Path.Combine(_baseStoragePath, category);
+            if (!Directory.Exists(categoryPath))
+                Directory.CreateDirectory(categoryPath);
+        }
+    }
+
+    private string GetExtensionFromMimeType(string mimeType)
+    {
+        return mimeType.ToLower() switch
+        {
+            "image/png" => ".png",
+            "image/jpeg" => ".jpg",
+            "image/webp" => ".webp",
+            _ => ".bin"
+        };
     }
 }
 </file>
@@ -2515,145 +2288,6 @@ public static class Extensions
 }
 </file>
 
-<file path="src/DnDMapBuilder.Contracts/DTOs/DomainDtos.cs">
-namespace DnDMapBuilder.Contracts.DTOs;
-
-public record UserDto(
-    string Id,
-    string Username,
-    string Email,
-    string Role,
-    string Status
-);
-
-public record TokenDefinitionDto(
-    string Id,
-    string Name,
-    string ImageUrl,
-    int Size,
-    string Type,
-    string UserId
-);
-
-public record MapTokenInstanceDto(
-    string InstanceId,
-    string TokenId,
-    int X,
-    int Y
-);
-
-public record GameMapDto(
-    string Id,
-    string Name,
-    string? ImageUrl,
-    int Rows,
-    int Cols,
-    List<MapTokenInstanceDto> Tokens,
-    string GridColor,
-    double GridOpacity,
-    string MissionId
-);
-
-public record MissionDto(
-    string Id,
-    string Name,
-    string Description,
-    List<GameMapDto> Maps,
-    string CampaignId
-);
-
-public record CampaignDto(
-    string Id,
-    string Name,
-    string Description,
-    List<MissionDto> Missions,
-    string OwnerId,
-    DateTime CreatedAt,
-    DateTime UpdatedAt
-);
-</file>
-
-<file path="src/DnDMapBuilder.Contracts/Requests/ApiRequests.cs">
-namespace DnDMapBuilder.Contracts.Requests;
-
-public record RegisterRequest(
-    string Username,
-    string Email,
-    string Password
-);
-
-public record LoginRequest(
-    string Email,
-    string Password
-);
-
-public record CreateCampaignRequest(
-    string Name,
-    string Description
-);
-
-public record UpdateCampaignRequest(
-    string Name,
-    string Description
-);
-
-public record CreateMissionRequest(
-    string Name,
-    string Description,
-    string CampaignId
-);
-
-public record UpdateMissionRequest(
-    string Name,
-    string Description
-);
-
-public record CreateMapRequest(
-    string Name,
-    string? ImageUrl,
-    int Rows,
-    int Cols,
-    string GridColor,
-    double GridOpacity,
-    string MissionId
-);
-
-public record UpdateMapRequest(
-    string Name,
-    string? ImageUrl,
-    int Rows,
-    int Cols,
-    List<MapTokenInstanceRequest> Tokens,
-    string GridColor,
-    double GridOpacity
-);
-
-public record MapTokenInstanceRequest(
-    string TokenId,
-    int X,
-    int Y
-);
-
-public record CreateTokenDefinitionRequest(
-    string Name,
-    string ImageUrl,
-    int Size,
-    string Type
-);
-
-public record UpdateTokenDefinitionRequest(
-    string Name,
-    string ImageUrl,
-    int Size,
-    string Type
-);
-
-public record ApproveUserRequest(
-    string UserId,
-    bool Approved
-);
-</file>
-
 <file path="src/DnDMapBuilder.Contracts/Responses/ApiResponses.cs">
 namespace DnDMapBuilder.Contracts.Responses;
 
@@ -2692,102 +2326,6 @@ public record PaginatedResponse<T>(
   </PropertyGroup>
 
 </Project>
-</file>
-
-<file path="src/DnDMapBuilder.Data/Entities/DomainEntities.cs">
-namespace DnDMapBuilder.Data.Entities;
-
-public class User
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string PasswordHash { get; set; } = string.Empty;
-    public string Role { get; set; } = "user"; // admin or user
-    public string Status { get; set; } = "pending"; // pending, approved, rejected
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public ICollection<Campaign> Campaigns { get; set; } = new List<Campaign>();
-    public ICollection<TokenDefinition> TokenDefinitions { get; set; } = new List<TokenDefinition>();
-}
-
-public class Campaign
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string OwnerId { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public User Owner { get; set; } = null!;
-    public ICollection<Mission> Missions { get; set; } = new List<Mission>();
-}
-
-public class Mission
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string CampaignId { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public Campaign Campaign { get; set; } = null!;
-    public ICollection<GameMap> Maps { get; set; } = new List<GameMap>();
-}
-
-public class GameMap
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Name { get; set; } = string.Empty;
-    public string? ImageUrl { get; set; }
-    public int Rows { get; set; }
-    public int Cols { get; set; }
-    public string GridColor { get; set; } = "#000000";
-    public double GridOpacity { get; set; } = 0.3;
-    public string MissionId { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public Mission Mission { get; set; } = null!;
-    public ICollection<MapTokenInstance> Tokens { get; set; } = new List<MapTokenInstance>();
-}
-
-public class TokenDefinition
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string Name { get; set; } = string.Empty;
-    public string ImageUrl { get; set; } = string.Empty;
-    public int Size { get; set; } = 1; // 1, 2, or 3
-    public string Type { get; set; } = "player"; // player or enemy
-    public string UserId { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public User User { get; set; } = null!;
-    public ICollection<MapTokenInstance> MapTokenInstances { get; set; } = new List<MapTokenInstance>();
-}
-
-public class MapTokenInstance
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string TokenId { get; set; } = string.Empty;
-    public string MapId { get; set; } = string.Empty;
-    public int X { get; set; }
-    public int Y { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    // Navigation properties
-    public TokenDefinition Token { get; set; } = null!;
-    public GameMap Map { get; set; } = null!;
-}
 </file>
 
 <file path="src/DnDMapBuilder.Data/Migrations/20260114100522_InitialCreate.cs">
@@ -4544,6 +4082,848 @@ namespace DnDMapBuilder.Data.Migrations
 }
 </file>
 
+<file path="src/DnDMapBuilder.Data/Migrations/20260117102707_AddImageFileStorageMetadata.cs">
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace DnDMapBuilder.Data.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddImageFileStorageMetadata : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(
+                name: "ImageContentType",
+                table: "TokenDefinitions",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ImageFileId",
+                table: "TokenDefinitions",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<long>(
+                name: "ImageFileSize",
+                table: "TokenDefinitions",
+                type: "bigint",
+                nullable: false,
+                defaultValue: 0L);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ImageContentType",
+                table: "GameMaps",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ImageFileId",
+                table: "GameMaps",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<long>(
+                name: "ImageFileSize",
+                table: "GameMaps",
+                type: "bigint",
+                nullable: false,
+                defaultValue: 0L);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "ImageContentType",
+                table: "TokenDefinitions");
+
+            migrationBuilder.DropColumn(
+                name: "ImageFileId",
+                table: "TokenDefinitions");
+
+            migrationBuilder.DropColumn(
+                name: "ImageFileSize",
+                table: "TokenDefinitions");
+
+            migrationBuilder.DropColumn(
+                name: "ImageContentType",
+                table: "GameMaps");
+
+            migrationBuilder.DropColumn(
+                name: "ImageFileId",
+                table: "GameMaps");
+
+            migrationBuilder.DropColumn(
+                name: "ImageFileSize",
+                table: "GameMaps");
+        }
+    }
+}
+</file>
+
+<file path="src/DnDMapBuilder.Data/Migrations/20260117102707_AddImageFileStorageMetadata.Designer.cs">
+// <auto-generated />
+using System;
+using DnDMapBuilder.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+#nullable disable
+
+namespace DnDMapBuilder.Data.Migrations
+{
+    [DbContext(typeof(DnDMapBuilderDbContext))]
+    [Migration("20260117102707_AddImageFileStorageMetadata")]
+    partial class AddImageFileStorageMetadata
+    {
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "9.0.0")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("Campaigns");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Cols")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GridColor")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<double>("GridOpacity")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MissionId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Rows")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MissionId");
+
+                    b.ToTable("GameMaps");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.MapTokenInstance", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MapId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("TokenId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("X")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MapId");
+
+                    b.HasIndex("TokenId");
+
+                    b.ToTable("MapTokenInstances");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("CampaignId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.ToTable("Missions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Size")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TokenDefinitions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.User", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.User", "Owner")
+                        .WithMany("Campaigns")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.Mission", "Mission")
+                        .WithMany("Maps")
+                        .HasForeignKey("MissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mission");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.MapTokenInstance", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.GameMap", "Map")
+                        .WithMany("Tokens")
+                        .HasForeignKey("MapId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DnDMapBuilder.Data.Entities.TokenDefinition", "Token")
+                        .WithMany("MapTokenInstances")
+                        .HasForeignKey("TokenId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Map");
+
+                    b.Navigation("Token");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.Campaign", "Campaign")
+                        .WithMany("Missions")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.User", "User")
+                        .WithMany("TokenDefinitions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.Navigation("Missions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.Navigation("Maps");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.Navigation("MapTokenInstances");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.User", b =>
+                {
+                    b.Navigation("Campaigns");
+
+                    b.Navigation("TokenDefinitions");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}
+</file>
+
+<file path="src/DnDMapBuilder.Data/Migrations/20260117104633_SaveImageFiles.cs">
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace DnDMapBuilder.Data.Migrations
+{
+    /// <inheritdoc />
+    public partial class SaveImageFiles : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+
+        }
+    }
+}
+</file>
+
+<file path="src/DnDMapBuilder.Data/Migrations/20260117104633_SaveImageFiles.Designer.cs">
+// <auto-generated />
+using System;
+using DnDMapBuilder.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
+#nullable disable
+
+namespace DnDMapBuilder.Data.Migrations
+{
+    [DbContext(typeof(DnDMapBuilderDbContext))]
+    [Migration("20260117104633_SaveImageFiles")]
+    partial class SaveImageFiles
+    {
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        {
+#pragma warning disable 612, 618
+            modelBuilder
+                .HasAnnotation("ProductVersion", "9.0.0")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("Campaigns");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Cols")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GridColor")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<double>("GridOpacity")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MissionId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Rows")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MissionId");
+
+                    b.ToTable("GameMaps");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.MapTokenInstance", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MapId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("TokenId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("X")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Y")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MapId");
+
+                    b.HasIndex("TokenId");
+
+                    b.ToTable("MapTokenInstances");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("CampaignId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.ToTable("Missions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Size")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TokenDefinitions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.User", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.User", "Owner")
+                        .WithMany("Campaigns")
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.Mission", "Mission")
+                        .WithMany("Maps")
+                        .HasForeignKey("MissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mission");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.MapTokenInstance", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.GameMap", "Map")
+                        .WithMany("Tokens")
+                        .HasForeignKey("MapId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DnDMapBuilder.Data.Entities.TokenDefinition", "Token")
+                        .WithMany("MapTokenInstances")
+                        .HasForeignKey("TokenId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Map");
+
+                    b.Navigation("Token");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.Campaign", "Campaign")
+                        .WithMany("Missions")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.HasOne("DnDMapBuilder.Data.Entities.User", "User")
+                        .WithMany("TokenDefinitions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Campaign", b =>
+                {
+                    b.Navigation("Missions");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.GameMap", b =>
+                {
+                    b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.Mission", b =>
+                {
+                    b.Navigation("Maps");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.TokenDefinition", b =>
+                {
+                    b.Navigation("MapTokenInstances");
+                });
+
+            modelBuilder.Entity("DnDMapBuilder.Data.Entities.User", b =>
+                {
+                    b.Navigation("Campaigns");
+
+                    b.Navigation("TokenDefinitions");
+                });
+#pragma warning restore 612, 618
+        }
+    }
+}
+</file>
+
 <file path="src/DnDMapBuilder.Data/Repositories/IRepositories.cs">
 using DnDMapBuilder.Data.Entities;
 
@@ -6083,6 +6463,291 @@ MIT License - Feel free to use and modify
 **Architecture**: Clean Architecture with Repository Pattern
 </file>
 
+<file path="prompt_plan.md">
+# backend_prompt_plan.md
+
+## Context
+This backend belongs to a DnD map builder application. The current implementation incorrectly stores and retrieves images (maps and tokens) from the database, likely using base64 or JSON-embedded blobs. This causes corruption, size issues, and retrieval bugs. The fix is to move to **proper file transfer and storage**, with the database storing only metadata and file references.
+
+---
+
+## Goals
+- Use multipart file upload instead of embedding images in JSON.
+- Store images in a file system or object storage (local disk, S3-compatible, etc.).
+- Persist only metadata (URL/path, size, type, ownership) in the database.
+- Ensure backward-safe migration path if existing data exists.
+
+---
+
+## Step-by-step Implementation Plan
+
+### Step 1: Audit Current Image Handling
+**status: done**
+- Identify all endpoints that accept or return images (maps, tokens).
+- Confirm how images are currently:
+  - Sent from frontend (base64, data URLs, JSON fields)
+  - Stored in DB (byte array, string, JSON column)
+- List affected entities (e.g., Map, Token).
+
+**Findings:**
+- Images are currently stored as URL strings only (nvarchar(1000) in SQL Server)
+- Maps endpoint (POST/PUT/GET) with optional ImageUrl field
+- Tokens endpoint (POST/PUT/GET) with required ImageUrl field
+- Affected entities: GameMap, TokenDefinition
+- No file upload system exists - all images are external URL references
+- No binary storage, multipart/form-data handling, or file validation currently
+
+---
+
+### Step 2: Define File Storage Strategy
+**status: done**
+- Decide storage target:
+  - Local filesystem (e.g., `/uploads/maps`, `/uploads/tokens`)
+  - OR object storage abstraction (recommended for future scaling).
+- Define naming strategy:
+  - UUID-based filenames
+  - Preserve original extension
+- Define public vs private access rules.
+
+**Strategy Decisions:**
+- **Storage Target**: Abstraction layer with local filesystem as initial implementation
+  - Directory structure: `wwwroot/uploads/maps/`, `wwwroot/uploads/tokens/`
+  - Future: Can swap to S3/Azure Blob without API changes
+- **Naming Strategy**:
+  - Format: `{UUID}_{originalFileName}` (preserves context and extension)
+  - Example: `a1b2c3d4-e5f6_dragon_token.png`
+- **Access Rules**:
+  - Maps: Public URLs (served via static middleware)
+  - Tokens: User-specific ownership (check authorization on retrieval)
+- **File Size Limits**:
+  - Maps: 5MB max
+  - Tokens: 2MB max
+- **Allowed MIME Types**: `image/png`, `image/jpeg`, `image/webp`
+
+---
+
+### Step 3: Introduce File Storage Abstraction
+**status: done**
+- Create a `IFileStorageService` (or equivalent):
+  - `UploadAsync(Stream file, FileMetadata metadata)`
+  - `DeleteAsync(fileId)`
+  - `GetPublicUrl(fileId)`
+- Implement initial version using local filesystem.
+- Ensure streaming is used (no full file buffering in memory).
+
+**Implementation:**
+- Created `IFileStorageService` interface in Application/Interfaces/IServices.cs
+- Implemented `LocalFileStorageService` in Application/Services/FileStorageService.cs
+- Uses async streaming (4096 buffer) - no full file buffering in memory
+- Stores files in `wwwroot/uploads/{category}/{fileId}`
+- Validates MIME types (png, jpeg, webp)
+- Prevents path traversal attacks
+- Registered as Singleton in Program.cs with logging
+- Added static file middleware for serving uploads
+
+---
+
+### Step 4: Update Domain Models
+**status: done**
+- Remove image binary/base64 fields from entities.
+- Add fields such as:
+  - `ImageFileId`
+  - `ImageUrl`
+  - `ContentType`
+  - `FileSize`
+- Update ORM mappings and migrations accordingly.
+
+**Implementation:**
+- Updated GameMap entity: added ImageFileId, ImageContentType, ImageFileSize (kept ImageUrl for backward compatibility)
+- Updated TokenDefinition entity: added ImageFileId, ImageContentType, ImageFileSize (kept ImageUrl for backward compatibility)
+- Created migration: 20260117102707_AddImageFileStorageMetadata.cs
+- Backward compatible: existing ImageUrl field remains for gradual migration
+
+---
+
+### Step 5: Update API Contracts
+**status: done**
+- Replace JSON-based image fields with:
+  - `multipart/form-data` endpoints
+- Separate responsibilities:
+  - One endpoint for metadata (map config, token position, etc.)
+  - One endpoint for file upload
+- Example:
+  - `POST /maps` (metadata only)
+  - `POST /maps/{id}/image` (multipart file upload)
+
+**Implementation:**
+- Updated GameMapDto: added ImageFileId, ImageContentType, ImageFileSize fields
+- Updated TokenDefinitionDto: added ImageFileId, ImageContentType, ImageFileSize fields
+- Added ImageUploadResponse contract for file upload responses
+- Updated mapping extensions to include new metadata fields
+- IFormFile handling will be done directly in controllers (not in Contracts layer)
+
+---
+
+### Step 6: Implement Upload Endpoints
+**status: done**
+- Add endpoints using `multipart/form-data`.
+- Validate:
+  - File size limits
+  - MIME types (png, jpg, webp)
+- Store file via `IFileStorageService`.
+- Persist file reference to DB.
+
+**Implementation:**
+- Added `POST /api/maps/{id}/image` endpoint in MapsController
+  - Validates file size (5MB max for maps)
+  - Validates MIME types (png, jpeg, webp)
+  - Verifies ownership before upload
+  - Stores file via IFileStorageService
+  - Updates map metadata in DB
+- Added `POST /api/tokens/{id}/image` endpoint in TokensController
+  - Validates file size (2MB max for tokens)
+  - Same validation and security checks as maps
+- Both endpoints return ImageUploadResponse with file info
+- Error handling for validation and storage failures
+
+---
+
+### Step 7: Implement Retrieval Strategy
+**status: done**
+- Serve images via:
+  - Static file middleware (local disk)
+  - OR signed URLs (if object storage)
+- Ensure API returns image URLs, not raw bytes.
+
+**Implementation:**
+- Static file middleware already added to Program.cs
+- Images served via `/uploads/{category}/{fileId}` routes
+- File storage service returns public URLs for each file
+- API endpoints return image URLs in DTO fields (ImageUrl)
+- No raw bytes returned - only URL references
+- Supports future S3/Azure Blob integration via IFileStorageService abstraction
+
+---
+
+### Step 8: Migration / Backward Compatibility
+**status: done**
+- Decide whether existing stored images must be migrated.
+- If yes:
+  - Write one-time migration script:
+    - Read old image data
+    - Save as file
+    - Update DB references
+- If no:
+  - Explicitly drop legacy fields.
+
+**Implementation:**
+- **Backward Compatible Approach**: Existing ImageUrl field retained
+- New file storage fields added as nullable (ImageFileId, ImageContentType, ImageFileSize)
+- Old endpoints still work with existing ImageUrl data
+- New upload endpoints populate both old and new fields
+- Existing data can coexist during gradual migration
+- Future: One-time migration script can convert existing URLs to file storage if needed
+- No data loss - legacy fields preserved for rollback capability
+
+---
+
+### Step 9: Security & Validation
+**status: done**
+- Enforce authorization checks on upload/delete.
+- Prevent path traversal.
+- Validate file headers (not just extensions).
+
+**Implementation:**
+- **Authorization**:
+  - [Authorize] attribute on all upload endpoints
+  - GetUserId() verifies user identity from JWT claims
+  - Ownership check: verify user owns map/token before allowing upload
+- **Path Traversal Prevention**:
+  - FileStorageService validates fileId to prevent ".." or "/" characters
+  - Files stored in UUID format only (e.g., a1b2c3d4-e5f6.png)
+  - No user-controlled path manipulation possible
+- **File Validation**:
+  - MIME type validation against allowlist (png, jpeg, webp)
+  - File size limits enforced (5MB for maps, 2MB for tokens)
+  - Validates IFormFile.Length before processing
+  - Safe file operations with proper error handling
+- **Storage Security**:
+  - Files saved to isolated directory (wwwroot/uploads/)
+  - Streaming used to avoid full-file memory buffering
+  - Proper exception handling and cleanup on failures
+
+---
+
+### Step 10: Documentation for Frontend Team
+**status: done**
+- Document new endpoints and payload expectations.
+- Provide example `curl` and Postman requests.
+
+**Documentation:**
+
+#### Map Image Upload
+- **Endpoint**: `POST /api/maps/{mapId}/image`
+- **Authentication**: Required (Bearer token)
+- **Content-Type**: `multipart/form-data`
+- **Parameters**:
+  - `image` (file): The image file to upload (PNG, JPEG, or WebP)
+- **File Limits**: Max 5MB
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "fileId": "a1b2c3d4-e5f6-7890.png",
+      "url": "/uploads/maps/a1b2c3d4-e5f6-7890.png",
+      "contentType": "image/png",
+      "fileSize": 123456
+    },
+    "message": "Image uploaded successfully."
+  }
+  ```
+
+#### Token Image Upload
+- **Endpoint**: `POST /api/tokens/{tokenId}/image`
+- **Authentication**: Required (Bearer token)
+- **Content-Type**: `multipart/form-data`
+- **Parameters**:
+  - `image` (file): The image file to upload (PNG, JPEG, or WebP)
+- **File Limits**: Max 2MB
+- **Response**: Same format as map image upload
+
+#### cURL Examples
+```bash
+# Upload map image
+curl -X POST "https://api.example.com/api/maps/map-id-123/image" \
+  -H "Authorization: Bearer <token>" \
+  -F "image=@path/to/map.png"
+
+# Upload token image
+curl -X POST "https://api.example.com/api/tokens/token-id-456/image" \
+  -H "Authorization: Bearer <token>" \
+  -F "image=@path/to/token.png"
+```
+
+#### Client Implementation Notes
+- Use `FormData` in JavaScript/fetch:
+  ```javascript
+  const formData = new FormData();
+  formData.append('image', fileInput.files[0]);
+
+  const response = await fetch(`/api/maps/${mapId}/image`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  ```
+
+#### Retrieval
+- Map/token images are returned in API responses via `ImageUrl` field
+- Images are publicly accessible at: `/uploads/{category}/{fileId}`
+- No additional API calls needed for retrieval - use URL directly in img tags
+
+---
+</file>
+
 <file path="QUICKSTART.md">
 # Quick Start Guide
 
@@ -7130,6 +7795,899 @@ COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "DnDMapBuilder.Api.dll"]
 </file>
 
+<file path="src/DnDMapBuilder.AppHost/AppHost.cs">
+var builder = DistributedApplication.CreateBuilder(args);
+
+// Disable IDE run session integration (use direct process launching)
+builder.Configuration["RunSession:UseIdeRunSession"] = "false";
+
+var sql = builder.AddSqlServer("Database")
+    .WithLifetime(ContainerLifetime.Persistent)
+    .AddDatabase("dndmapbuilder");
+
+builder.AddProject<Projects.DnDMapBuilder_Api>("dndmapapi")
+    .WithReference(sql)
+    .WithEnvironment("ConnectionStrings__DefaultConnection", sql)
+    .WaitFor(sql)
+    .WithEnvironment("ADMIN_EMAIL", "admin@test.com")
+    .WithEnvironment("ADMIN_DEFAULT_PASSWORD", "1234")
+    .WithEnvironment("MIGRATIONS_EXECUTE", "true");
+
+builder.Build().Run();
+</file>
+
+<file path="src/DnDMapBuilder.Application/Interfaces/IServices.cs">
+using DnDMapBuilder.Contracts.DTOs;
+using DnDMapBuilder.Contracts.Requests;
+using DnDMapBuilder.Contracts.Responses;
+
+namespace DnDMapBuilder.Application.Interfaces;
+
+public interface IAuthService
+{
+    Task<AuthResponse?> RegisterAsync(RegisterRequest request);
+    Task<AuthResponse?> LoginAsync(LoginRequest request);
+    Task<bool> ApproveUserAsync(string userId, bool approved);
+    Task<IEnumerable<UserDto>> GetPendingUsersAsync();
+}
+
+public interface ICampaignService
+{
+    Task<CampaignDto?> GetByIdAsync(string id, string userId);
+    Task<IEnumerable<CampaignDto>> GetUserCampaignsAsync(string userId);
+    Task<CampaignDto> CreateAsync(CreateCampaignRequest request, string userId);
+    Task<CampaignDto?> UpdateAsync(string id, UpdateCampaignRequest request, string userId);
+    Task<bool> DeleteAsync(string id, string userId);
+}
+
+public interface IMissionService
+{
+    Task<MissionDto?> GetByIdAsync(string id, string userId);
+    Task<IEnumerable<MissionDto>> GetByCampaignIdAsync(string campaignId, string userId);
+    Task<MissionDto> CreateAsync(CreateMissionRequest request, string userId);
+    Task<MissionDto?> UpdateAsync(string id, UpdateMissionRequest request, string userId);
+    Task<bool> DeleteAsync(string id, string userId);
+}
+
+public interface IGameMapService
+{
+    Task<GameMapDto?> GetByIdAsync(string id, string userId);
+    Task<IEnumerable<GameMapDto>> GetByMissionIdAsync(string missionId, string userId);
+    Task<GameMapDto> CreateAsync(CreateMapRequest request, string userId);
+    Task<GameMapDto?> UpdateAsync(string id, UpdateMapRequest request, string userId);
+    Task<bool> DeleteAsync(string id, string userId);
+}
+
+public interface ITokenDefinitionService
+{
+    Task<TokenDefinitionDto?> GetByIdAsync(string id, string userId);
+    Task<IEnumerable<TokenDefinitionDto>> GetUserTokensAsync(string userId);
+    Task<TokenDefinitionDto> CreateAsync(CreateTokenDefinitionRequest request, string userId);
+    Task<TokenDefinitionDto?> UpdateAsync(string id, UpdateTokenDefinitionRequest request, string userId);
+    Task<bool> DeleteAsync(string id, string userId);
+}
+
+public interface IJwtService
+{
+    string GenerateToken(string userId, string email, string role);
+    string? ValidateToken(string token);
+}
+
+public interface IFileStorageService
+{
+    /// <summary>
+    /// Uploads a file to storage and returns the file ID for database reference.
+    /// </summary>
+    /// <param name="file">The file stream to upload</param>
+    /// <param name="fileName">Original file name</param>
+    /// <param name="contentType">MIME type of the file</param>
+    /// <param name="storageCategory">Category for organization (e.g., "maps", "tokens")</param>
+    /// <returns>Generated file ID</returns>
+    Task<string> UploadAsync(Stream file, string fileName, string contentType, string storageCategory);
+
+    /// <summary>
+    /// Gets the public URL for a stored file.
+    /// </summary>
+    /// <param name="fileId">The file ID returned from upload</param>
+    /// <param name="storageCategory">The category where the file is stored</param>
+    /// <returns>Public URL to the file</returns>
+    string GetPublicUrl(string fileId, string storageCategory);
+
+    /// <summary>
+    /// Deletes a file from storage.
+    /// </summary>
+    /// <param name="fileId">The file ID to delete</param>
+    /// <param name="storageCategory">The category where the file is stored</param>
+    /// <returns>True if deleted successfully</returns>
+    Task<bool> DeleteAsync(string fileId, string storageCategory);
+}
+</file>
+
+<file path="src/DnDMapBuilder.Application/Mappings/MappingExtensions.cs">
+using DnDMapBuilder.Contracts.DTOs;
+using DnDMapBuilder.Data.Entities;
+
+namespace DnDMapBuilder.Application.Mappings;
+
+public static class MappingExtensions
+{
+    public static UserDto ToDto(this User user)
+    {
+        return new UserDto(
+            user.Id,
+            user.Username,
+            user.Email,
+            user.Role,
+            user.Status
+        );
+    }
+
+    public static TokenDefinitionDto ToDto(this TokenDefinition token)
+    {
+        return new TokenDefinitionDto(
+            token.Id,
+            token.Name,
+            token.ImageUrl,
+            token.Size,
+            token.Type,
+            token.UserId,
+            token.ImageFileId,
+            token.ImageContentType,
+            token.ImageFileSize
+        );
+    }
+
+    public static MapTokenInstanceDto ToDto(this MapTokenInstance instance)
+    {
+        return new MapTokenInstanceDto(
+            instance.Id,
+            instance.TokenId,
+            instance.X,
+            instance.Y
+        );
+    }
+
+    public static GameMapDto ToDto(this GameMap map)
+    {
+        return new GameMapDto(
+            map.Id,
+            map.Name,
+            map.ImageUrl,
+            map.Rows,
+            map.Cols,
+            map.Tokens.Select(t => t.ToDto()).ToList(),
+            map.GridColor,
+            map.GridOpacity,
+            map.MissionId,
+            map.ImageFileId,
+            map.ImageContentType,
+            map.ImageFileSize
+        );
+    }
+
+    public static MissionDto ToDto(this Mission mission)
+    {
+        return new MissionDto(
+            mission.Id,
+            mission.Name,
+            mission.Description,
+            mission.Maps.Select(m => m.ToDto()).ToList(),
+            mission.CampaignId
+        );
+    }
+
+    public static CampaignDto ToDto(this Campaign campaign)
+    {
+        return new CampaignDto(
+            campaign.Id,
+            campaign.Name,
+            campaign.Description,
+            campaign.Missions.Select(m => m.ToDto()).ToList(),
+            campaign.OwnerId,
+            campaign.CreatedAt,
+            campaign.UpdatedAt
+        );
+    }
+}
+</file>
+
+<file path="src/DnDMapBuilder.Contracts/DTOs/DomainDtos.cs">
+namespace DnDMapBuilder.Contracts.DTOs;
+
+public record UserDto(
+    string Id,
+    string Username,
+    string Email,
+    string Role,
+    string Status
+);
+
+public record TokenDefinitionDto(
+    string Id,
+    string Name,
+    string ImageUrl,
+    int Size,
+    string Type,
+    string UserId,
+    string? ImageFileId = null,
+    string? ImageContentType = null,
+    long ImageFileSize = 0
+);
+
+public record MapTokenInstanceDto(
+    string InstanceId,
+    string TokenId,
+    int X,
+    int Y
+);
+
+public record GameMapDto(
+    string Id,
+    string Name,
+    string? ImageUrl,
+    int Rows,
+    int Cols,
+    List<MapTokenInstanceDto> Tokens,
+    string GridColor,
+    double GridOpacity,
+    string MissionId,
+    string? ImageFileId = null,
+    string? ImageContentType = null,
+    long ImageFileSize = 0
+);
+
+public record MissionDto(
+    string Id,
+    string Name,
+    string Description,
+    List<GameMapDto> Maps,
+    string CampaignId
+);
+
+public record CampaignDto(
+    string Id,
+    string Name,
+    string Description,
+    List<MissionDto> Missions,
+    string OwnerId,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
+);
+</file>
+
+<file path="src/DnDMapBuilder.Contracts/Requests/ApiRequests.cs">
+namespace DnDMapBuilder.Contracts.Requests;
+
+public record RegisterRequest(
+    string Username,
+    string Email,
+    string Password
+);
+
+public record LoginRequest(
+    string Email,
+    string Password
+);
+
+public record CreateCampaignRequest(
+    string Name,
+    string Description
+);
+
+public record UpdateCampaignRequest(
+    string Name,
+    string Description
+);
+
+public record CreateMissionRequest(
+    string Name,
+    string Description,
+    string CampaignId
+);
+
+public record UpdateMissionRequest(
+    string Name,
+    string Description
+);
+
+public record CreateMapRequest(
+    string Name,
+    string? ImageUrl,
+    int Rows,
+    int Cols,
+    string GridColor,
+    double GridOpacity,
+    string MissionId
+);
+
+public record UpdateMapRequest(
+    string Name,
+    string? ImageUrl,
+    int Rows,
+    int Cols,
+    List<MapTokenInstanceRequest> Tokens,
+    string GridColor,
+    double GridOpacity
+);
+
+public record MapTokenInstanceRequest(
+    string TokenId,
+    int X,
+    int Y
+);
+
+public record CreateTokenDefinitionRequest(
+    string Name,
+    string ImageUrl,
+    int Size,
+    string Type
+);
+
+public record UpdateTokenDefinitionRequest(
+    string Name,
+    string ImageUrl,
+    int Size,
+    string Type
+);
+
+public record ApproveUserRequest(
+    string UserId,
+    bool Approved
+);
+
+// File upload response
+public record ImageUploadResponse(
+    string FileId,
+    string Url,
+    string ContentType,
+    long FileSize
+);
+</file>
+
+<file path="src/DnDMapBuilder.Data/Entities/DomainEntities.cs">
+namespace DnDMapBuilder.Data.Entities;
+
+public class User
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string PasswordHash { get; set; } = string.Empty;
+    public string Role { get; set; } = "user"; // admin or user
+    public string Status { get; set; } = "pending"; // pending, approved, rejected
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public ICollection<Campaign> Campaigns { get; set; } = new List<Campaign>();
+    public ICollection<TokenDefinition> TokenDefinitions { get; set; } = new List<TokenDefinition>();
+}
+
+public class Campaign
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string OwnerId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public User Owner { get; set; } = null!;
+    public ICollection<Mission> Missions { get; set; } = new List<Mission>();
+}
+
+public class Mission
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string CampaignId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public Campaign Campaign { get; set; } = null!;
+    public ICollection<GameMap> Maps { get; set; } = new List<GameMap>();
+}
+
+public class GameMap
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string? ImageUrl { get; set; }
+
+    // File storage metadata (new fields for multipart upload)
+    public string? ImageFileId { get; set; }
+    public string? ImageContentType { get; set; }
+    public long ImageFileSize { get; set; } = 0;
+
+    public int Rows { get; set; }
+    public int Cols { get; set; }
+    public string GridColor { get; set; } = "#000000";
+    public double GridOpacity { get; set; } = 0.3;
+    public string MissionId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public Mission Mission { get; set; } = null!;
+    public ICollection<MapTokenInstance> Tokens { get; set; } = new List<MapTokenInstance>();
+}
+
+public class TokenDefinition
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string ImageUrl { get; set; } = string.Empty;
+
+    // File storage metadata (new fields for multipart upload)
+    public string? ImageFileId { get; set; }
+    public string? ImageContentType { get; set; }
+    public long ImageFileSize { get; set; } = 0;
+
+    public int Size { get; set; } = 1; // 1, 2, or 3
+    public string Type { get; set; } = "player"; // player or enemy
+    public string UserId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public User User { get; set; } = null!;
+    public ICollection<MapTokenInstance> MapTokenInstances { get; set; } = new List<MapTokenInstance>();
+}
+
+public class MapTokenInstance
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string TokenId { get; set; } = string.Empty;
+    public string MapId { get; set; } = string.Empty;
+    public int X { get; set; }
+    public int Y { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation properties
+    public TokenDefinition Token { get; set; } = null!;
+    public GameMap Map { get; set; } = null!;
+}
+</file>
+
+<file path="src/DnDMapBuilder.Data/DnDMapBuilder.Data.csproj">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
+</file>
+
+<file path="DnDMapBuilder.sln">
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Api", "src\DnDMapBuilder.Api\DnDMapBuilder.Api.csproj", "{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Contracts", "src\DnDMapBuilder.Contracts\DnDMapBuilder.Contracts.csproj", "{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Application", "src\DnDMapBuilder.Application\DnDMapBuilder.Application.csproj", "{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Data", "src\DnDMapBuilder.Data\DnDMapBuilder.Data.csproj", "{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Aspire.ServiceDefaults", "src\DnDMapBuilder.Aspire.ServiceDefaults\DnDMapBuilder.Aspire.ServiceDefaults.csproj", "{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.AppHost", "src\DnDMapBuilder.AppHost\DnDMapBuilder.AppHost.csproj", "{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+</file>
+
+<file path="src/DnDMapBuilder.Api/Controllers/OtherControllers.cs">
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using DnDMapBuilder.Application.Interfaces;
+using DnDMapBuilder.Contracts.DTOs;
+using DnDMapBuilder.Contracts.Requests;
+using DnDMapBuilder.Contracts.Responses;
+
+namespace DnDMapBuilder.Api.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+public class MissionsController : ControllerBase
+{
+    private readonly IMissionService _missionService;
+
+    public MissionsController(IMissionService missionService)
+    {
+        _missionService = missionService;
+    }
+
+    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<MissionDto>>> GetMission(string id)
+    {
+        var mission = await _missionService.GetByIdAsync(id, GetUserId());
+        
+        if (mission == null)
+        {
+            return NotFound(new ApiResponse<MissionDto>(false, null, "Mission not found."));
+        }
+
+        return Ok(new ApiResponse<MissionDto>(true, mission));
+    }
+
+    [HttpGet("campaign/{campaignId}")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<MissionDto>>>> GetMissionsByCampaign(string campaignId)
+    {
+        var missions = await _missionService.GetByCampaignIdAsync(campaignId, GetUserId());
+        return Ok(new ApiResponse<IEnumerable<MissionDto>>(true, missions));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<MissionDto>>> CreateMission([FromBody] CreateMissionRequest request)
+    {
+        try
+        {
+            var mission = await _missionService.CreateAsync(request, GetUserId());
+            return CreatedAtAction(nameof(GetMission), new { id = mission.Id }, new ApiResponse<MissionDto>(true, mission, "Mission created."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<MissionDto>>> UpdateMission(string id, [FromBody] UpdateMissionRequest request)
+    {
+        var mission = await _missionService.UpdateAsync(id, request, GetUserId());
+        
+        if (mission == null)
+        {
+            return NotFound(new ApiResponse<MissionDto>(false, null, "Mission not found."));
+        }
+
+        return Ok(new ApiResponse<MissionDto>(true, mission, "Mission updated."));
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteMission(string id)
+    {
+        var result = await _missionService.DeleteAsync(id, GetUserId());
+        
+        if (!result)
+        {
+            return NotFound(new ApiResponse<bool>(false, false, "Mission not found."));
+        }
+
+        return Ok(new ApiResponse<bool>(true, true, "Mission deleted."));
+    }
+}
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+public class MapsController : ControllerBase
+{
+    private readonly IGameMapService _mapService;
+    private readonly IFileStorageService _fileStorageService;
+
+    public MapsController(IGameMapService mapService, IFileStorageService fileStorageService)
+    {
+        _mapService = mapService;
+        _fileStorageService = fileStorageService;
+    }
+
+    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id)
+    {
+        var map = await _mapService.GetByIdAsync(id, GetUserId());
+        
+        if (map == null)
+        {
+            return NotFound(new ApiResponse<GameMapDto>(false, null, "Map not found."));
+        }
+
+        return Ok(new ApiResponse<GameMapDto>(true, map));
+    }
+
+    [HttpGet("mission/{missionId}")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId)
+    {
+        var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId());
+        return Ok(new ApiResponse<IEnumerable<GameMapDto>>(true, maps));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> CreateMap([FromBody] CreateMapRequest request)
+    {
+        try
+        {
+            var map = await _mapService.CreateAsync(request, GetUserId());
+            return CreatedAtAction(nameof(GetMap), new { id = map.Id }, new ApiResponse<GameMapDto>(true, map, "Map created."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid(ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> UpdateMap(string id, [FromBody] UpdateMapRequest request)
+    {
+        var map = await _mapService.UpdateAsync(id, request, GetUserId());
+        
+        if (map == null)
+        {
+            return NotFound(new ApiResponse<GameMapDto>(false, null, "Map not found."));
+        }
+
+        return Ok(new ApiResponse<GameMapDto>(true, map, "Map updated."));
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteMap(string id)
+    {
+        var result = await _mapService.DeleteAsync(id, GetUserId());
+
+        if (!result)
+        {
+            return NotFound(new ApiResponse<bool>(false, false, "Map not found."));
+        }
+
+        return Ok(new ApiResponse<bool>(true, true, "Map deleted."));
+    }
+
+    [HttpPost("{id}/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadMapImage(string id, IFormFile image)
+    {
+        try
+        {
+            // Validate file
+            if (image == null || image.Length == 0)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "No file provided."));
+
+            // Validate file size (5MB max for maps)
+            const long maxFileSize = 5 * 1024 * 1024;
+            if (image.Length > maxFileSize)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "File size exceeds 5MB limit."));
+
+            // Validate MIME type
+            var allowedMimeTypes = new[] { "image/png", "image/jpeg", "image/webp" };
+            if (!allowedMimeTypes.Contains(image.ContentType?.ToLower() ?? ""))
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
+
+            // Get map to verify ownership
+            var map = await _mapService.GetByIdAsync(id, GetUserId());
+            if (map == null)
+                return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Map not found."));
+
+            // Upload file
+            var fileId = await _fileStorageService.UploadAsync(
+                image.OpenReadStream(),
+                image.FileName,
+                image.ContentType,
+                "maps"
+            );
+
+            // Update map with file metadata
+            var updatedMap = map with
+            {
+                ImageFileId = fileId,
+                ImageContentType = image.ContentType,
+                ImageFileSize = image.Length,
+                ImageUrl = _fileStorageService.GetPublicUrl(fileId, "maps")
+            };
+
+            // Update database
+            var tokenRequests = updatedMap.Tokens
+                .Select(t => new MapTokenInstanceRequest(t.TokenId, t.X, t.Y))
+                .ToList();
+
+            var result = await _mapService.UpdateAsync(id, new UpdateMapRequest(
+                updatedMap.Name,
+                updatedMap.ImageUrl,
+                updatedMap.Rows,
+                updatedMap.Cols,
+                tokenRequests,
+                updatedMap.GridColor,
+                updatedMap.GridOpacity
+            ), GetUserId());
+
+            var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
+            return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ApiResponse<ImageUploadResponse>(false, null, $"Error uploading image: {ex.Message}"));
+        }
+    }
+}
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+public class TokensController : ControllerBase
+{
+    private readonly ITokenDefinitionService _tokenService;
+    private readonly IFileStorageService _fileStorageService;
+
+    public TokensController(ITokenDefinitionService tokenService, IFileStorageService fileStorageService)
+    {
+        _tokenService = tokenService;
+        _fileStorageService = fileStorageService;
+    }
+
+    private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens()
+    {
+        var tokens = await _tokenService.GetUserTokensAsync(GetUserId());
+        return Ok(new ApiResponse<IEnumerable<TokenDefinitionDto>>(true, tokens));
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> GetToken(string id)
+    {
+        var token = await _tokenService.GetByIdAsync(id, GetUserId());
+        
+        if (token == null)
+        {
+            return NotFound(new ApiResponse<TokenDefinitionDto>(false, null, "Token not found."));
+        }
+
+        return Ok(new ApiResponse<TokenDefinitionDto>(true, token));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> CreateToken([FromBody] CreateTokenDefinitionRequest request)
+    {
+        var token = await _tokenService.CreateAsync(request, GetUserId());
+        return CreatedAtAction(nameof(GetToken), new { id = token.Id }, new ApiResponse<TokenDefinitionDto>(true, token, "Token created."));
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> UpdateToken(string id, [FromBody] UpdateTokenDefinitionRequest request)
+    {
+        var token = await _tokenService.UpdateAsync(id, request, GetUserId());
+        
+        if (token == null)
+        {
+            return NotFound(new ApiResponse<TokenDefinitionDto>(false, null, "Token not found."));
+        }
+
+        return Ok(new ApiResponse<TokenDefinitionDto>(true, token, "Token updated."));
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteToken(string id)
+    {
+        var result = await _tokenService.DeleteAsync(id, GetUserId());
+
+        if (!result)
+        {
+            return NotFound(new ApiResponse<bool>(false, false, "Token not found."));
+        }
+
+        return Ok(new ApiResponse<bool>(true, true, "Token deleted."));
+    }
+
+    [HttpPost("{id}/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadTokenImage(string id, IFormFile image)
+    {
+        try
+        {
+            // Validate file
+            if (image == null || image.Length == 0)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "No file provided."));
+
+            // Validate file size (2MB max for tokens)
+            const long maxFileSize = 2 * 1024 * 1024;
+            if (image.Length > maxFileSize)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "File size exceeds 2MB limit."));
+
+            // Validate MIME type
+            var allowedMimeTypes = new[] { "image/png", "image/jpeg", "image/webp" };
+            if (!allowedMimeTypes.Contains(image.ContentType?.ToLower() ?? ""))
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
+
+            // Get token to verify ownership
+            var token = await _tokenService.GetByIdAsync(id, GetUserId());
+            if (token == null)
+                return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Token not found."));
+
+            // Upload file
+            var fileId = await _fileStorageService.UploadAsync(
+                image.OpenReadStream(),
+                image.FileName,
+                image.ContentType,
+                "tokens"
+            );
+
+            // Update token with file metadata
+            var updatedToken = token with
+            {
+                ImageFileId = fileId,
+                ImageContentType = image.ContentType,
+                ImageFileSize = image.Length,
+                ImageUrl = _fileStorageService.GetPublicUrl(fileId, "tokens")
+            };
+
+            // Update database
+            var result = await _tokenService.UpdateAsync(id, new UpdateTokenDefinitionRequest(
+                updatedToken.Name,
+                updatedToken.ImageUrl,
+                updatedToken.Size,
+                updatedToken.Type
+            ), GetUserId());
+
+            var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
+            return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ApiResponse<ImageUploadResponse>(false, null, $"Error uploading image: {ex.Message}"));
+        }
+    }
+}
+</file>
+
 <file path="src/DnDMapBuilder.Data/Migrations/DnDMapBuilderDbContextModelSnapshot.cs">
 // <auto-generated />
 using System;
@@ -7205,6 +8763,15 @@ namespace DnDMapBuilder.Data.Migrations
 
                     b.Property<double>("GridOpacity")
                         .HasColumnType("float");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(1000)
@@ -7302,6 +8869,15 @@ namespace DnDMapBuilder.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ImageContentType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ImageFileId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("ImageFileSize")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("ImageUrl")
                         .IsRequired()
@@ -7476,30 +9052,117 @@ namespace DnDMapBuilder.Data.Migrations
 }
 </file>
 
-<file path="src/DnDMapBuilder.Data/DnDMapBuilder.Data.csproj">
-<Project Sdk="Microsoft.NET.Sdk">
+<file path="src/DnDMapBuilder.Data/DnDMapBuilderDbContext.cs">
+using Microsoft.EntityFrameworkCore;
+using DnDMapBuilder.Data.Entities;
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+namespace DnDMapBuilder.Data;
 
-  <ItemGroup>
-    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
+public class DnDMapBuilderDbContext : DbContext
+{
+    public DnDMapBuilderDbContext(DbContextOptions<DnDMapBuilderDbContext> options)
+        : base(options)
+    {
+    }
 
-</Project>
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<Campaign> Campaigns { get; set; } = null!;
+    public DbSet<Mission> Missions { get; set; } = null!;
+    public DbSet<GameMap> GameMaps { get; set; } = null!;
+    public DbSet<TokenDefinition> TokenDefinitions { get; set; } = null!;
+    public DbSet<MapTokenInstance> MapTokenInstances { get; set; } = null!;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // User configuration
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Email).IsUnique();
+            entity.HasIndex(e => e.Username).IsUnique();
+            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.PasswordHash).IsRequired();
+            entity.Property(e => e.Role).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+        });
+
+        // Campaign configuration
+        modelBuilder.Entity<Campaign>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            
+            entity.HasOne(e => e.Owner)
+                .WithMany(u => u.Campaigns)
+                .HasForeignKey(e => e.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Mission configuration
+        modelBuilder.Entity<Mission>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).HasMaxLength(2000);
+            
+            entity.HasOne(e => e.Campaign)
+                .WithMany(c => c.Missions)
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // GameMap configuration
+        modelBuilder.Entity<GameMap>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ImageUrl).HasMaxLength(1000);
+            entity.Property(e => e.GridColor).IsRequired().HasMaxLength(20);
+            
+            entity.HasOne(e => e.Mission)
+                .WithMany(m => m.Maps)
+                .HasForeignKey(e => e.MissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // TokenDefinition configuration
+        modelBuilder.Entity<TokenDefinition>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.ImageUrl).IsRequired().HasMaxLength(1000);
+            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
+            
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.TokenDefinitions)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MapTokenInstance configuration
+        modelBuilder.Entity<MapTokenInstance>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            entity.HasOne(e => e.Token)
+                .WithMany(t => t.MapTokenInstances)
+                .HasForeignKey(e => e.TokenId)
+                .OnDelete(DeleteBehavior.Restrict);
+            
+            entity.HasOne(e => e.Map)
+                .WithMany(m => m.Tokens)
+                .HasForeignKey(e => e.MapId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Note: Admin user is seeded via DbInitializer at runtime, not via migrations
+        // This allows the password to be read from environment variables securely
+    }
+}
 </file>
 
 <file path=".gitignore">
@@ -7593,6 +9256,9 @@ coverage/
 Properties/launchSettings.json
 launchSettings.json
 
+# Uploaded files (user content)
+src/DnDMapBuilder.Api/wwwroot/uploads/
+
 # Entity Framework Core
 # Note: Migrations SHOULD be committed to track database schema changes
 
@@ -7605,55 +9271,33 @@ DnDMapBuilder.sln.DotSettings.user
 BACKEND_ENHANCEMENT_PROMPT_PLAN.md
 </file>
 
-<file path="DnDMapBuilder.sln">
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Api", "src\DnDMapBuilder.Api\DnDMapBuilder.Api.csproj", "{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Contracts", "src\DnDMapBuilder.Contracts\DnDMapBuilder.Contracts.csproj", "{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Application", "src\DnDMapBuilder.Application\DnDMapBuilder.Application.csproj", "{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Data", "src\DnDMapBuilder.Data\DnDMapBuilder.Data.csproj", "{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.Aspire.ServiceDefaults", "src\DnDMapBuilder.Aspire.ServiceDefaults\DnDMapBuilder.Aspire.ServiceDefaults.csproj", "{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DnDMapBuilder.AppHost", "src\DnDMapBuilder.AppHost\DnDMapBuilder.AppHost.csproj", "{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}"
-EndProject
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Any CPU = Debug|Any CPU
-		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C3D4E5F6-A7B8-4C5D-0E1F-2A3B4C5D6E7F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D4E5F6A7-B8C9-4D5E-1F2A-3B4C5D6E7F8A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F6A7B8C9-D0E1-4F5A-3B4C-5D6E7F8A9B0C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{89F87745-B0C5-4D3B-BEA2-CEB28F10F513}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-EndGlobal
+<file path="docker-compose.yml">
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/DnDMapBuilder.Api/Dockerfile
+    container_name: dnd-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:443;http://+:80
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certs/aspnetapp.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=crypticpassword
+    ports:
+      - "5000:80"
+      - "5001:443"
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./uploads:/app/wwwroot/uploads
+    networks:
+      - dnd-network
+
+networks:
+  dnd-network:
+    driver: bridge
 </file>
 
 <file path="src/DnDMapBuilder.Api/Program.cs">
@@ -7768,6 +9412,12 @@ builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
 
+// File Storage Service
+var baseStoragePath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
+var basePublicUrl = "/uploads";
+builder.Services.AddSingleton<IFileStorageService>(sp =>
+    new LocalFileStorageService(baseStoragePath, basePublicUrl, sp.GetRequiredService<ILogger<LocalFileStorageService>>()));
+
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
@@ -7787,153 +9437,28 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Ensure wwwroot directory exists for static file serving
+var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+if (!Directory.Exists(wwwrootPath))
+{
+    Directory.CreateDirectory(wwwrootPath);
+}
+
+// Serve static files from wwwroot at /api path
+// This matches the frontend's URL construction: BASE_URL + imageUrl = /api + /uploads/...
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootPath),
+    RequestPath = "/api"
+});
+
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-</file>
-
-<file path="src/DnDMapBuilder.Data/DnDMapBuilderDbContext.cs">
-using Microsoft.EntityFrameworkCore;
-using DnDMapBuilder.Data.Entities;
-
-namespace DnDMapBuilder.Data;
-
-public class DnDMapBuilderDbContext : DbContext
-{
-    public DnDMapBuilderDbContext(DbContextOptions<DnDMapBuilderDbContext> options)
-        : base(options)
-    {
-    }
-
-    public DbSet<User> Users { get; set; } = null!;
-    public DbSet<Campaign> Campaigns { get; set; } = null!;
-    public DbSet<Mission> Missions { get; set; } = null!;
-    public DbSet<GameMap> GameMaps { get; set; } = null!;
-    public DbSet<TokenDefinition> TokenDefinitions { get; set; } = null!;
-    public DbSet<MapTokenInstance> MapTokenInstances { get; set; } = null!;
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        // User configuration
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.Property(e => e.Username).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.Email).IsRequired().HasMaxLength(255);
-            entity.Property(e => e.PasswordHash).IsRequired();
-            entity.Property(e => e.Role).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
-        });
-
-        // Campaign configuration
-        modelBuilder.Entity<Campaign>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Description).HasMaxLength(2000);
-            
-            entity.HasOne(e => e.Owner)
-                .WithMany(u => u.Campaigns)
-                .HasForeignKey(e => e.OwnerId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Mission configuration
-        modelBuilder.Entity<Mission>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Description).HasMaxLength(2000);
-            
-            entity.HasOne(e => e.Campaign)
-                .WithMany(c => c.Missions)
-                .HasForeignKey(e => e.CampaignId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // GameMap configuration
-        modelBuilder.Entity<GameMap>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.ImageUrl).HasMaxLength(1000);
-            entity.Property(e => e.GridColor).IsRequired().HasMaxLength(20);
-            
-            entity.HasOne(e => e.Mission)
-                .WithMany(m => m.Maps)
-                .HasForeignKey(e => e.MissionId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // TokenDefinition configuration
-        modelBuilder.Entity<TokenDefinition>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.ImageUrl).IsRequired().HasMaxLength(1000);
-            entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
-            
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.TokenDefinitions)
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // MapTokenInstance configuration
-        modelBuilder.Entity<MapTokenInstance>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            
-            entity.HasOne(e => e.Token)
-                .WithMany(t => t.MapTokenInstances)
-                .HasForeignKey(e => e.TokenId)
-                .OnDelete(DeleteBehavior.Restrict);
-            
-            entity.HasOne(e => e.Map)
-                .WithMany(m => m.Tokens)
-                .HasForeignKey(e => e.MapId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Note: Admin user is seeded via DbInitializer at runtime, not via migrations
-        // This allows the password to be read from environment variables securely
-    }
-}
-</file>
-
-<file path="docker-compose.yml">
-version: '3.8'
-
-services:
-  api:
-    build:
-      context: .
-      dockerfile: src/DnDMapBuilder.Api/Dockerfile
-    container_name: dnd-api
-    restart: unless-stopped
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=https://+:443;http://+:80
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certs/aspnetapp.pfx
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=crypticpassword
-    ports:
-      - "5000:80"
-      - "5001:443"
-    volumes:
-      - ./certs:/app/certs:ro
-    networks:
-      - dnd-network
-
-networks:
-  dnd-network:
-    driver: bridge
 </file>
 
 <file path=".github/workflows/main.yml">
@@ -8060,6 +9585,9 @@ jobs:
           sudo docker stop dnd-api || true
           sudo docker rm dnd-api || true
 
+          # Create uploads directory on host if it doesn't exist
+          mkdir -p ~/dnd-api-uploads
+
           # Run new container with environment variables
           sudo docker run -d \
             --name dnd-api \
@@ -8073,6 +9601,7 @@ jobs:
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
             -e ADMIN_DEFAULT_PASSWORD="${{ secrets.ADMIN_DEFAULT_PASSWORD }}" \
             -e ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
+            -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest
 
