@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Contracts.DTOs;
@@ -113,6 +114,7 @@ public class TokensController : ControllerBase
     /// <param name="id">The token definition ID</param>
     /// <param name="image">The image file to upload</param>
     /// <returns>Upload response with file details or error status</returns>
+    [EnableRateLimiting("fileUpload")]
     [HttpPost("{id}/image")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadTokenImage(string id, IFormFile image)

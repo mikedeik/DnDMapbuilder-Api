@@ -7,6 +7,7 @@ using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;
+using DnDMapBuilder.Infrastructure.Configuration;
 using DnDMapBuilder.Infrastructure.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -75,6 +76,9 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// Rate Limiting
+builder.Services.AddRateLimitingConfiguration();
+
 // CORS
 builder.Services.AddCors(options =>
 {
@@ -134,6 +138,9 @@ app.UseHttpsRedirection();
 
 // Add request/response logging middleware
 app.UseRequestResponseLogging();
+
+// Add rate limiting middleware
+app.UseRateLimitingConfiguration();
 
 // Ensure wwwroot directory exists for static file serving
 var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
