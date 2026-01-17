@@ -216,7 +216,7 @@ public class MapsController : ControllerBase
                 updatedMap.GridOpacity
             ), GetUserId());
 
-            var response = new ImageUploadResponse(fileId, result.ImageUrl, image.ContentType, image.Length);
+            var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
             return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
         }
         catch (Exception ex)
@@ -345,7 +345,7 @@ public class TokensController : ControllerBase
                 updatedToken.Type
             ), GetUserId());
 
-            var response = new ImageUploadResponse(fileId, result.ImageUrl, image.ContentType, image.Length);
+            var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
             return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
         }
         catch (Exception ex)
