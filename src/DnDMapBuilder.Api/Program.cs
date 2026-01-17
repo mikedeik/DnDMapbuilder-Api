@@ -76,6 +76,8 @@ builder.Services.AddScoped<ITokenDefinitionRepository, TokenDefinitionRepository
 builder.Services.AddScoped<IMapTokenInstanceRepository, MapTokenInstanceRepository>();
 
 // Register Services
+builder.Services.AddSingleton<IPasswordService, PasswordService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<IMissionService, MissionService>();

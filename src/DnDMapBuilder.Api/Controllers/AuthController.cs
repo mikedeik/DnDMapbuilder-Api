@@ -12,18 +12,21 @@ namespace DnDMapBuilder.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserManagementService _userManagementService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserManagementService userManagementService)
     {
         _authService = authService;
+        _userManagementService = userManagementService;
     }
 
     [HttpPost("register")]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request)
     {
-        var result = await _authService.RegisterAsync(request);
-        
-        if (result == null)
+        // Create user via user management service
+        var userDto = await _userManagementService.RegisterAsync(request);
+
+        if (userDto == null)
         {
             return BadRequest(new ApiResponse<AuthResponse>(
                 false,
@@ -32,14 +35,27 @@ public class AuthController : ControllerBase
             ));
         }
 
-        return Ok(new ApiResponse<AuthResponse>(true, result, "Registration successful. Awaiting admin approval."));
+        // Auto-login after successful registration
+        var loginRequest = new LoginRequest(request.Email, request.Password);
+        var authResponse = await _authService.LoginAsync(loginRequest);
+
+        if (authResponse == null)
+        {
+            return Ok(new ApiResponse<AuthResponse>(
+                true,
+                null,
+                "Registration successful. Awaiting admin approval."
+            ));
+        }
+
+        return Ok(new ApiResponse<AuthResponse>(true, authResponse, "Registration successful. Token generated."));
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
-        
+
         if (result == null)
         {
             return Unauthorized(new ApiResponse<AuthResponse>(
@@ -56,7 +72,7 @@ public class AuthController : ControllerBase
     [HttpGet("pending-users")]
     public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers()
     {
-        var users = await _authService.GetPendingUsersAsync();
+        var users = await _userManagementService.GetPendingUsersAsync();
         return Ok(new ApiResponse<IEnumerable<UserDto>>(true, users));
     }
 
@@ -64,8 +80,8 @@ public class AuthController : ControllerBase
     [HttpPost("approve-user")]
     public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request)
     {
-        var result = await _authService.ApproveUserAsync(request.UserId, request.Approved);
-        
+        var result = await _userManagementService.ApproveUserAsync(request.UserId, request.Approved);
+
         if (!result)
         {
             return NotFound(new ApiResponse<bool>(false, false, "User not found."));

@@ -3,11 +3,13 @@ using DnDMapBuilder.Application.Mappings;
 using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Requests;
 using DnDMapBuilder.Data.Entities;
-using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;
 
 namespace DnDMapBuilder.Application.Services;
 
+/// <summary>
+/// Service for GameMap business logic and CRUD operations.
+/// </summary>
 public class GameMapService : IGameMapService
 {
     private readonly IGameMapRepository _mapRepository;
@@ -27,6 +29,13 @@ public class GameMapService : IGameMapService
         _tokenInstanceRepository = tokenInstanceRepository;
     }
 
+    /// <summary>
+    /// Gets a GameMap by ID if user has access.
+    /// </summary>
+    /// <param name="id">The GameMap ID</param>
+    /// <param name="userId">The requesting user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The GameMap DTO or null if not found or user has no access</returns>
     public async Task<GameMapDto?> GetByIdAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
         var map = await _mapRepository.GetWithTokensAsync(id, cancellationToken);
@@ -43,6 +52,13 @@ public class GameMapService : IGameMapService
         return map.ToDto();
     }
 
+    /// <summary>
+    /// Gets all GameMaps for a specific mission.
+    /// </summary>
+    /// <param name="missionId">The mission ID</param>
+    /// <param name="userId">The requesting user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Collection of GameMap DTOs</returns>
     public async Task<IEnumerable<GameMapDto>> GetByMissionIdAsync(string missionId, string userId, CancellationToken cancellationToken = default)
     {
         if (!await HasAccessToMapAsync(missionId, userId, cancellationToken))
@@ -54,6 +70,14 @@ public class GameMapService : IGameMapService
         return maps.Select(m => m.ToDto());
     }
 
+    /// <summary>
+    /// Creates a new GameMap.
+    /// </summary>
+    /// <param name="request">Create map request</param>
+    /// <param name="userId">The requesting user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The created GameMap DTO</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown when user doesn't have permission</exception>
     public async Task<GameMapDto> CreateAsync(CreateMapRequest request, string userId, CancellationToken cancellationToken = default)
     {
         if (!await HasAccessToMapAsync(request.MissionId, userId, cancellationToken))
@@ -79,6 +103,14 @@ public class GameMapService : IGameMapService
         return map.ToDto();
     }
 
+    /// <summary>
+    /// Updates an existing GameMap.
+    /// </summary>
+    /// <param name="id">The GameMap ID to update</param>
+    /// <param name="request">Update map request</param>
+    /// <param name="userId">The requesting user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The updated GameMap DTO or null if not found</returns>
     public async Task<GameMapDto?> UpdateAsync(string id, UpdateMapRequest request, string userId, CancellationToken cancellationToken = default)
     {
         var map = await _mapRepository.GetByIdAsync(id, cancellationToken);
@@ -123,6 +155,13 @@ public class GameMapService : IGameMapService
         return updatedMap?.ToDto();
     }
 
+    /// <summary>
+    /// Deletes a GameMap.
+    /// </summary>
+    /// <param name="id">The GameMap ID to delete</param>
+    /// <param name="userId">The requesting user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if deletion succeeded, false otherwise</returns>
     public async Task<bool> DeleteAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
         var map = await _mapRepository.GetByIdAsync(id, cancellationToken);
@@ -140,6 +179,9 @@ public class GameMapService : IGameMapService
         return true;
     }
 
+    /// <summary>
+    /// Checks if user has access to a map via mission and campaign ownership.
+    /// </summary>
     private async Task<bool> HasAccessToMapAsync(string missionId, string userId, CancellationToken cancellationToken = default)
     {
         var mission = await _missionRepository.GetByIdAsync(missionId, cancellationToken);
@@ -150,80 +192,5 @@ public class GameMapService : IGameMapService
 
         var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
         return campaign != null && campaign.OwnerId == userId;
-    }
-}
-
-public class TokenDefinitionService : ITokenDefinitionService
-{
-    private readonly ITokenDefinitionRepository _tokenRepository;
-
-    public TokenDefinitionService(ITokenDefinitionRepository tokenRepository)
-    {
-        _tokenRepository = tokenRepository;
-    }
-
-    public async Task<TokenDefinitionDto?> GetByIdAsync(string id, string userId, CancellationToken cancellationToken = default)
-    {
-        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
-        if (token == null || token.UserId != userId)
-        {
-            return null;
-        }
-
-        return token.ToDto();
-    }
-
-    public async Task<IEnumerable<TokenDefinitionDto>> GetUserTokensAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        var tokens = await _tokenRepository.GetByUserIdAsync(userId, cancellationToken);
-        return tokens.Select(t => t.ToDto());
-    }
-
-    public async Task<TokenDefinitionDto> CreateAsync(CreateTokenDefinitionRequest request, string userId, CancellationToken cancellationToken = default)
-    {
-        var token = new TokenDefinition
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = request.Name,
-            ImageUrl = request.ImageUrl,
-            Size = request.Size,
-            Type = request.Type,
-            UserId = userId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        await _tokenRepository.AddAsync(token, cancellationToken);
-        return token.ToDto();
-    }
-
-    public async Task<TokenDefinitionDto?> UpdateAsync(string id, UpdateTokenDefinitionRequest request, string userId, CancellationToken cancellationToken = default)
-    {
-        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
-        if (token == null || token.UserId != userId)
-        {
-            return null;
-        }
-
-        token.Name = request.Name;
-        token.ImageUrl = request.ImageUrl;
-        token.Size = request.Size;
-        token.Type = request.Type;
-        token.UpdatedAt = DateTime.UtcNow;
-
-        await _tokenRepository.UpdateAsync(token, cancellationToken);
-        return token.ToDto();
-    }
-
-    public async Task<bool> DeleteAsync(string id, string userId, CancellationToken cancellationToken = default)
-    {
-        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
-        if (token == null || token.UserId != userId)
-        {
-            return false;
-        }
-
-        await _tokenRepository.DeleteAsync(id, cancellationToken);
-        return true;
     }
 }
