@@ -134,7 +134,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+
+// Serve static files from wwwroot/uploads at /api/uploads path
+// This matches the frontend's URL construction: BASE_URL + imageUrl = /api + /uploads/...
+app.UseStaticFiles(new StaticFileOptions
+{
+    RequestPath = "/api"
+});
+
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();

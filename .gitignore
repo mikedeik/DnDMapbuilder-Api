@@ -88,6 +88,9 @@ coverage/
 Properties/launchSettings.json
 launchSettings.json
 
+# Uploaded files (user content)
+src/DnDMapBuilder.Api/wwwroot/uploads/
+
 # Entity Framework Core
 # Note: Migrations SHOULD be committed to track database schema changes
 
