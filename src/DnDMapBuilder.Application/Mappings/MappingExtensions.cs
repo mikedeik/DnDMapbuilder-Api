@@ -24,7 +24,10 @@ public static class MappingExtensions
             token.ImageUrl,
             token.Size,
             token.Type,
-            token.UserId
+            token.UserId,
+            token.ImageFileId,
+            token.ImageContentType,
+            token.ImageFileSize
         );
     }
 
@@ -49,7 +52,10 @@ public static class MappingExtensions
             map.Tokens.Select(t => t.ToDto()).ToList(),
             map.GridColor,
             map.GridOpacity,
-            map.MissionId
+            map.MissionId,
+            map.ImageFileId,
+            map.ImageContentType,
+            map.ImageFileSize
         );
     }
 

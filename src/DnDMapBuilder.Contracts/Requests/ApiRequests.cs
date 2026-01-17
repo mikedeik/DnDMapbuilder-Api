@@ -76,3 +76,11 @@ public record ApproveUserRequest(
     string UserId,
     bool Approved
 );
+
+// File upload response
+public record ImageUploadResponse(
+    string FileId,
+    string Url,
+    string ContentType,
+    long FileSize
+);

@@ -109,6 +109,12 @@ builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
 
+// File Storage Service
+var baseStoragePath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
+var basePublicUrl = "/uploads";
+builder.Services.AddSingleton<IFileStorageService>(sp =>
+    new LocalFileStorageService(baseStoragePath, basePublicUrl, sp.GetRequiredService<ILogger<LocalFileStorageService>>()));
+
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
@@ -128,6 +134,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();

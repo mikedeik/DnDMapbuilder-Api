@@ -89,10 +89,12 @@ public class MissionsController : ControllerBase
 public class MapsController : ControllerBase
 {
     private readonly IGameMapService _mapService;
+    private readonly IFileStorageService _fileStorageService;
 
-    public MapsController(IGameMapService mapService)
+    public MapsController(IGameMapService mapService, IFileStorageService fileStorageService)
     {
         _mapService = mapService;
+        _fileStorageService = fileStorageService;
     }
 
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
@@ -148,13 +150,79 @@ public class MapsController : ControllerBase
     public async Task<ActionResult<ApiResponse<bool>>> DeleteMap(string id)
     {
         var result = await _mapService.DeleteAsync(id, GetUserId());
-        
+
         if (!result)
         {
             return NotFound(new ApiResponse<bool>(false, false, "Map not found."));
         }
 
         return Ok(new ApiResponse<bool>(true, true, "Map deleted."));
+    }
+
+    [HttpPost("{id}/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadMapImage(string id, IFormFile image)
+    {
+        try
+        {
+            // Validate file
+            if (image == null || image.Length == 0)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "No file provided."));
+
+            // Validate file size (5MB max for maps)
+            const long maxFileSize = 5 * 1024 * 1024;
+            if (image.Length > maxFileSize)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "File size exceeds 5MB limit."));
+
+            // Validate MIME type
+            var allowedMimeTypes = new[] { "image/png", "image/jpeg", "image/webp" };
+            if (!allowedMimeTypes.Contains(image.ContentType?.ToLower() ?? ""))
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
+
+            // Get map to verify ownership
+            var map = await _mapService.GetByIdAsync(id, GetUserId());
+            if (map == null)
+                return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Map not found."));
+
+            // Upload file
+            var fileId = await _fileStorageService.UploadAsync(
+                image.OpenReadStream(),
+                image.FileName,
+                image.ContentType,
+                "maps"
+            );
+
+            // Update map with file metadata
+            var updatedMap = map with
+            {
+                ImageFileId = fileId,
+                ImageContentType = image.ContentType,
+                ImageFileSize = image.Length,
+                ImageUrl = _fileStorageService.GetPublicUrl(fileId, "maps")
+            };
+
+            // Update database
+            var tokenRequests = updatedMap.Tokens
+                .Select(t => new MapTokenInstanceRequest(t.TokenId, t.X, t.Y))
+                .ToList();
+
+            var result = await _mapService.UpdateAsync(id, new UpdateMapRequest(
+                updatedMap.Name,
+                updatedMap.ImageUrl,
+                updatedMap.Rows,
+                updatedMap.Cols,
+                tokenRequests,
+                updatedMap.GridColor,
+                updatedMap.GridOpacity
+            ), GetUserId());
+
+            var response = new ImageUploadResponse(fileId, result.ImageUrl, image.ContentType, image.Length);
+            return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ApiResponse<ImageUploadResponse>(false, null, $"Error uploading image: {ex.Message}"));
+        }
     }
 }
 
@@ -164,10 +232,12 @@ public class MapsController : ControllerBase
 public class TokensController : ControllerBase
 {
     private readonly ITokenDefinitionService _tokenService;
+    private readonly IFileStorageService _fileStorageService;
 
-    public TokensController(ITokenDefinitionService tokenService)
+    public TokensController(ITokenDefinitionService tokenService, IFileStorageService fileStorageService)
     {
         _tokenService = tokenService;
+        _fileStorageService = fileStorageService;
     }
 
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
@@ -216,12 +286,71 @@ public class TokensController : ControllerBase
     public async Task<ActionResult<ApiResponse<bool>>> DeleteToken(string id)
     {
         var result = await _tokenService.DeleteAsync(id, GetUserId());
-        
+
         if (!result)
         {
             return NotFound(new ApiResponse<bool>(false, false, "Token not found."));
         }
 
         return Ok(new ApiResponse<bool>(true, true, "Token deleted."));
+    }
+
+    [HttpPost("{id}/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadTokenImage(string id, IFormFile image)
+    {
+        try
+        {
+            // Validate file
+            if (image == null || image.Length == 0)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "No file provided."));
+
+            // Validate file size (2MB max for tokens)
+            const long maxFileSize = 2 * 1024 * 1024;
+            if (image.Length > maxFileSize)
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "File size exceeds 2MB limit."));
+
+            // Validate MIME type
+            var allowedMimeTypes = new[] { "image/png", "image/jpeg", "image/webp" };
+            if (!allowedMimeTypes.Contains(image.ContentType?.ToLower() ?? ""))
+                return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
+
+            // Get token to verify ownership
+            var token = await _tokenService.GetByIdAsync(id, GetUserId());
+            if (token == null)
+                return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Token not found."));
+
+            // Upload file
+            var fileId = await _fileStorageService.UploadAsync(
+                image.OpenReadStream(),
+                image.FileName,
+                image.ContentType,
+                "tokens"
+            );
+
+            // Update token with file metadata
+            var updatedToken = token with
+            {
+                ImageFileId = fileId,
+                ImageContentType = image.ContentType,
+                ImageFileSize = image.Length,
+                ImageUrl = _fileStorageService.GetPublicUrl(fileId, "tokens")
+            };
+
+            // Update database
+            var result = await _tokenService.UpdateAsync(id, new UpdateTokenDefinitionRequest(
+                updatedToken.Name,
+                updatedToken.ImageUrl,
+                updatedToken.Size,
+                updatedToken.Type
+            ), GetUserId());
+
+            var response = new ImageUploadResponse(fileId, result.ImageUrl, image.ContentType, image.Length);
+            return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ApiResponse<ImageUploadResponse>(false, null, $"Error uploading image: {ex.Message}"));
+        }
     }
 }

@@ -14,7 +14,10 @@ public record TokenDefinitionDto(
     string ImageUrl,
     int Size,
     string Type,
-    string UserId
+    string UserId,
+    string? ImageFileId = null,
+    string? ImageContentType = null,
+    long ImageFileSize = 0
 );
 
 public record MapTokenInstanceDto(
@@ -33,7 +36,10 @@ public record GameMapDto(
     List<MapTokenInstanceDto> Tokens,
     string GridColor,
     double GridOpacity,
-    string MissionId
+    string MissionId,
+    string? ImageFileId = null,
+    string? ImageContentType = null,
+    long ImageFileSize = 0
 );
 
 public record MissionDto(
