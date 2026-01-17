@@ -111,38 +111,75 @@ jobs:
           # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-          # Create Docker network if it doesn't exist
-          sudo docker network create dnd-network 2>/dev/null || true
+          # Create Docker network if it doesn't exist (matches docker-compose.yml configuration)
+          docker network create dnd-network 2>/dev/null || true
 
-          # Pull the latest image
-          sudo docker pull ghcr.io/${IMAGE_NAME}:latest
+          # Create SQL Server container if it doesn't exist (matches docker-compose.yml)
+          docker inspect dnd-sqlserver > /dev/null 2>&1 || \
+          docker run -d \
+            --name dnd-sqlserver \
+            --restart unless-stopped \
+            -e ACCEPT_EULA=Y \
+            -e MSSQL_SA_PASSWORD="${{ secrets.SA_PASSWORD }}" \
+            -e MSSQL_PID=Developer \
+            -p 1433:1433 \
+            -v sqlserver_data:/var/opt/mssql \
+            --network dnd-network \
+            --health-cmd="/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${{ secrets.SA_PASSWORD }} -Q 'SELECT 1'" \
+            --health-interval=10s \
+            --health-timeout=3s \
+            --health-retries=5 \
+            --health-start-period=20s \
+            mcr.microsoft.com/mssql/server:2022-latest
 
-          # Stop and remove old container
-          sudo docker stop dnd-api || true
-          sudo docker rm dnd-api || true
+          # Wait for SQL Server to be healthy
+          echo "Waiting for SQL Server to be healthy..."
+          for i in {1..30}; do
+            if docker exec dnd-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${{ secrets.SA_PASSWORD }}" -Q "SELECT 1" > /dev/null 2>&1; then
+              echo "SQL Server is healthy"
+              break
+            fi
+            echo "Attempt $i/30: Waiting for SQL Server..."
+            sleep 2
+          done
+
+          # Pull the latest API image
+          docker pull ghcr.io/${IMAGE_NAME}:latest
+
+          # Stop and remove old API container
+          docker stop dnd-api || true
+          docker rm dnd-api || true
 
           # Create uploads directory on host if it doesn't exist
           mkdir -p ~/dnd-api-uploads
 
-          # Run new container with environment variables
-          sudo docker run -d \
+          # Run new API container with environment variables (matches docker-compose.yml)
+          docker run -d \
             --name dnd-api \
             --restart unless-stopped \
             -p 5000:8080 \
+            -p 5001:8443 \
             -e ASPNETCORE_ENVIRONMENT=Production \
-            -e ASPNETCORE_URLS="http://+:8080" \
-            -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
-            -e JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
+            -e ASPNETCORE_URLS="http://+:8080;https://+:8443" \
+            -e ConnectionStrings__DefaultConnection="Server=dnd-sqlserver;Database=dndmapbuilder;User Id=sa;Password=${{ secrets.SA_PASSWORD }};TrustServerCertificate=True;" \
+            -e JwtSettings__SecretKey="${{ secrets.JWT_SECRET_KEY }}" \
             -e JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
             -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
-            -e ADMIN_DEFAULT_PASSWORD="${{ secrets.ADMIN_DEFAULT_PASSWORD }}" \
-            -e ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
+            -e JwtSettings__ExpirationMinutes="${{ secrets.JWT_EXPIRATION_MINUTES || 1440 }}" \
+            -e CorsSettings__AllowedOrigins__0="${{ secrets.CORS_ALLOWED_ORIGIN_1 }}" \
+            -e CorsSettings__AllowedOrigins__1="${{ secrets.CORS_ALLOWED_ORIGIN_2 }}" \
+            -e UPLOADS_PATH="${{ secrets.UPLOADS_PATH || ~/dnd-api-uploads }}" \
             -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
+            --health-cmd="curl -f http://localhost:8080/health/live || exit 1" \
+            --health-interval=30s \
+            --health-timeout=3s \
+            --health-retries=3 \
+            --health-start-period=10s \
             ghcr.io/${IMAGE_NAME}:latest
 
           # Clean up old images
-          sudo docker image prune -f
+          docker image prune -f
 
     - name: Verify deployment
       uses: appleboy/ssh-action@v1.0.0
@@ -152,8 +189,31 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SERVER_PORT || 22 }}
         script: |
-          # Check if container is running
-          sudo docker ps | grep dnd-api
+          # Wait for API container to be healthy
+          echo "Waiting for API container to be healthy..."
+          for i in {1..30}; do
+            if docker exec dnd-api curl -f http://localhost:8080/health/live > /dev/null 2>&1; then
+              echo "API container is healthy"
+              break
+            fi
+            echo "Attempt $i/30: Waiting for API..."
+            sleep 2
+          done
 
-          # Check container logs
-          sudo docker logs dnd-api --tail 50
+          # Check if container is running
+          docker ps | grep dnd-api
+
+          # Check container logs for errors
+          echo "Recent API container logs:"
+          docker logs dnd-api --tail 50
+
+          # Run smoke tests against deployed API
+          echo "Running smoke tests..."
+
+          # Test health check endpoint
+          echo "Testing /health/live endpoint..."
+          curl -f http://localhost:5000/health/live || echo "Health check failed"
+
+          # Test health check detailed endpoint
+          echo "Testing /health endpoint..."
+          curl -f http://localhost:5000/health || echo "Health check detailed failed"
