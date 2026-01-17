@@ -1,26 +1,65 @@
 version: '3.8'
 
+# SQL Server database service
 services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: dnd-sqlserver
+    restart: unless-stopped
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD:-s_2.Z6NWn*Jj17esJD6p+E}
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - dnd-network
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${SA_PASSWORD:-s_2.Z6NWn*Jj17esJD6p+E}", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  # D&D Map Builder API service
   api:
     build:
       context: .
       dockerfile: src/DnDMapBuilder.Api/Dockerfile
     container_name: dnd-api
     restart: unless-stopped
+    depends_on:
+      sqlserver:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=https://+:443;http://+:80
+      - ASPNETCORE_URLS=http://+:8080;https://+:8443
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=dndmapbuilder;User Id=sa;Password=${SA_PASSWORD:-s_2.Z6NWn*Jj17esJD6p+E};TrustServerCertificate=True;
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certs/aspnetapp.pfx
       - ASPNETCORE_Kestrel__Certificates__Default__Password=crypticpassword
     ports:
-      - "5000:80"
-      - "5001:443"
+      - "5000:8080"
+      - "5001:8443"
     volumes:
       - ./certs:/app/certs:ro
-      - ./uploads:/app/wwwroot/uploads
+      - ${UPLOADS_PATH:-./uploads}:/app/wwwroot/uploads
     networks:
       - dnd-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
+# Volume definitions for persistent data
+volumes:
+  sqlserver_data:
+    driver: local
+
+# Network definition
 networks:
   dnd-network:
     driver: bridge
