@@ -1,6 +1,6 @@
 using DnDMapBuilder.Data.Entities;
 
-namespace DnDMapBuilder.Data.Repositories;
+namespace DnDMapBuilder.Data.Repositories.Interfaces;
 
 /// <summary>
 /// Repository interface for TokenDefinition entities with domain-specific queries.

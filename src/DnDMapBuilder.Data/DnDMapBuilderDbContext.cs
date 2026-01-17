@@ -17,6 +17,17 @@ public class DnDMapBuilderDbContext : DbContext
     public DbSet<TokenDefinition> TokenDefinitions { get; set; } = null!;
     public DbSet<MapTokenInstance> MapTokenInstances { get; set; } = null!;
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+
+        // Detailed debugging for Development only
+#if DEBUG
+        optionsBuilder.EnableSensitiveDataLogging();
+        optionsBuilder.EnableDetailedErrors();
+#endif
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -6,6 +6,7 @@ using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
+using DnDMapBuilder.Data.Repositories.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 

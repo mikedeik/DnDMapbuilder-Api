@@ -1,6 +1,6 @@
 using DnDMapBuilder.Data.Entities;
 
-namespace DnDMapBuilder.Data.Repositories;
+namespace DnDMapBuilder.Data.Repositories.Interfaces;
 
 /// <summary>
 /// Repository interface for Campaign entities with domain-specific queries.

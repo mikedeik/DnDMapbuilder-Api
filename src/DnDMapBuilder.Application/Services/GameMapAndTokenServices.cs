@@ -4,6 +4,7 @@ using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Requests;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories;
+using DnDMapBuilder.Data.Repositories.Interfaces;
 
 namespace DnDMapBuilder.Application.Services;
 

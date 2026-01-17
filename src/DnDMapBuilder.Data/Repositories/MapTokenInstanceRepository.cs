@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using DnDMapBuilder.Data.Entities;
+using DnDMapBuilder.Data.Repositories.Interfaces;
 
 namespace DnDMapBuilder.Data.Repositories;
 

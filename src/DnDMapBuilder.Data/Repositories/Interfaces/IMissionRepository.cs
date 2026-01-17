@@ -1,6 +1,6 @@
 using DnDMapBuilder.Data.Entities;
 
-namespace DnDMapBuilder.Data.Repositories;
+namespace DnDMapBuilder.Data.Repositories.Interfaces;
 
 /// <summary>
 /// Repository interface for Mission entities with domain-specific queries.
