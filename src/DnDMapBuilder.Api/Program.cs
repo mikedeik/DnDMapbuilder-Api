@@ -7,6 +7,7 @@ using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;
+using DnDMapBuilder.Infrastructure.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -130,6 +131,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Add request/response logging middleware
+app.UseRequestResponseLogging();
 
 // Ensure wwwroot directory exists for static file serving
 var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");

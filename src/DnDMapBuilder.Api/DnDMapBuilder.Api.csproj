@@ -23,6 +23,7 @@
     <ProjectReference Include="..\DnDMapBuilder.Aspire.ServiceDefaults\DnDMapBuilder.Aspire.ServiceDefaults.csproj" />
     <ProjectReference Include="..\DnDMapBuilder.Contracts\DnDMapBuilder.Contracts.csproj" />
     <ProjectReference Include="..\DnDMapBuilder.Data\DnDMapBuilder.Data.csproj" />
+    <ProjectReference Include="..\DnDMapBuilder.Infrastructure\DnDMapBuilder.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
