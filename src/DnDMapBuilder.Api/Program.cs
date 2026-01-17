@@ -76,17 +76,33 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// Configuration - Use Options pattern
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection(CorsSettings.SectionName));
+
 // Rate Limiting
 builder.Services.AddRateLimitingConfiguration();
 
-// CORS
+// CORS - Use configured origins
+var corsSettings = builder.Configuration.GetSection(CorsSettings.SectionName).Get<CorsSettings>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy(CorsSettings.SectionName, policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (corsSettings?.AllowedOrigins?.Length > 0)
+        {
+            policy.WithOrigins(corsSettings.AllowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // Fallback to AllowAll if no origins configured
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 
@@ -136,6 +152,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Add security headers middleware
+app.UseSecurityHeaders();
+
 // Add request/response logging middleware
 app.UseRequestResponseLogging();
 
@@ -157,7 +176,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/api"
 });
 
-app.UseCors("AllowAll");
+app.UseCors(CorsSettings.SectionName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
