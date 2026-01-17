@@ -2,11 +2,11 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,29 +19,20 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "DnD Map Builder API", Version = "v1" });
     
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+    // c.AddSecurityDefinition(
+    //     "Bearer",
+    //     new OpenApiSecurityScheme
+    //     {
+    //         In = ParameterLocation.Header,
+    //         Description = "Please enter a valid token.",
+    //         Name = "Authorization",
+    //         Type = SecuritySchemeType.Http,
+    //         BearerFormat = "JWT",
+    //         Scheme = "Bearer",
+    //     }
+    // );
+    //
+    // c.AddSecurityRequirement(document => new() { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] });
 });
 
 // Database
