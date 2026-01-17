@@ -27,15 +27,15 @@ public class GameMapService : IGameMapService
         _tokenInstanceRepository = tokenInstanceRepository;
     }
 
-    public async Task<GameMapDto?> GetByIdAsync(string id, string userId)
+    public async Task<GameMapDto?> GetByIdAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var map = await _mapRepository.GetWithTokensAsync(id);
+        var map = await _mapRepository.GetWithTokensAsync(id, cancellationToken);
         if (map == null)
         {
             return null;
         }
 
-        if (!await HasAccessToMapAsync(map.MissionId, userId))
+        if (!await HasAccessToMapAsync(map.MissionId, userId, cancellationToken))
         {
             return null;
         }
@@ -43,20 +43,20 @@ public class GameMapService : IGameMapService
         return map.ToDto();
     }
 
-    public async Task<IEnumerable<GameMapDto>> GetByMissionIdAsync(string missionId, string userId)
+    public async Task<IEnumerable<GameMapDto>> GetByMissionIdAsync(string missionId, string userId, CancellationToken cancellationToken = default)
     {
-        if (!await HasAccessToMapAsync(missionId, userId))
+        if (!await HasAccessToMapAsync(missionId, userId, cancellationToken))
         {
             return Enumerable.Empty<GameMapDto>();
         }
 
-        var maps = await _mapRepository.GetByMissionIdAsync(missionId);
+        var maps = await _mapRepository.GetByMissionIdAsync(missionId, cancellationToken);
         return maps.Select(m => m.ToDto());
     }
 
-    public async Task<GameMapDto> CreateAsync(CreateMapRequest request, string userId)
+    public async Task<GameMapDto> CreateAsync(CreateMapRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        if (!await HasAccessToMapAsync(request.MissionId, userId))
+        if (!await HasAccessToMapAsync(request.MissionId, userId, cancellationToken))
         {
             throw new UnauthorizedAccessException("You don't have permission to add maps to this mission.");
         }
@@ -75,19 +75,19 @@ public class GameMapService : IGameMapService
             UpdatedAt = DateTime.UtcNow
         };
 
-        await _mapRepository.AddAsync(map);
+        await _mapRepository.AddAsync(map, cancellationToken);
         return map.ToDto();
     }
 
-    public async Task<GameMapDto?> UpdateAsync(string id, UpdateMapRequest request, string userId)
+    public async Task<GameMapDto?> UpdateAsync(string id, UpdateMapRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        var map = await _mapRepository.GetByIdAsync(id);
+        var map = await _mapRepository.GetByIdAsync(id, cancellationToken);
         if (map == null)
         {
             return null;
         }
 
-        if (!await HasAccessToMapAsync(map.MissionId, userId))
+        if (!await HasAccessToMapAsync(map.MissionId, userId, cancellationToken))
         {
             return null;
         }
@@ -101,8 +101,8 @@ public class GameMapService : IGameMapService
         map.UpdatedAt = DateTime.UtcNow;
 
         // Update tokens
-        await _tokenInstanceRepository.DeleteByMapIdAsync(map.Id);
-        
+        await _tokenInstanceRepository.DeleteByMapIdAsync(map.Id, cancellationToken);
+
         foreach (var tokenReq in request.Tokens)
         {
             var tokenInstance = new MapTokenInstance
@@ -114,41 +114,41 @@ public class GameMapService : IGameMapService
                 Y = tokenReq.Y,
                 CreatedAt = DateTime.UtcNow
             };
-            await _tokenInstanceRepository.AddAsync(tokenInstance);
+            await _tokenInstanceRepository.AddAsync(tokenInstance, cancellationToken);
         }
 
-        await _mapRepository.UpdateAsync(map);
-        
-        var updatedMap = await _mapRepository.GetWithTokensAsync(id);
+        await _mapRepository.UpdateAsync(map, cancellationToken);
+
+        var updatedMap = await _mapRepository.GetWithTokensAsync(id, cancellationToken);
         return updatedMap?.ToDto();
     }
 
-    public async Task<bool> DeleteAsync(string id, string userId)
+    public async Task<bool> DeleteAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var map = await _mapRepository.GetByIdAsync(id);
+        var map = await _mapRepository.GetByIdAsync(id, cancellationToken);
         if (map == null)
         {
             return false;
         }
 
-        if (!await HasAccessToMapAsync(map.MissionId, userId))
+        if (!await HasAccessToMapAsync(map.MissionId, userId, cancellationToken))
         {
             return false;
         }
 
-        await _mapRepository.DeleteAsync(id);
+        await _mapRepository.DeleteAsync(id, cancellationToken);
         return true;
     }
 
-    private async Task<bool> HasAccessToMapAsync(string missionId, string userId)
+    private async Task<bool> HasAccessToMapAsync(string missionId, string userId, CancellationToken cancellationToken = default)
     {
-        var mission = await _missionRepository.GetByIdAsync(missionId);
+        var mission = await _missionRepository.GetByIdAsync(missionId, cancellationToken);
         if (mission == null)
         {
             return false;
         }
 
-        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
         return campaign != null && campaign.OwnerId == userId;
     }
 }
@@ -162,9 +162,9 @@ public class TokenDefinitionService : ITokenDefinitionService
         _tokenRepository = tokenRepository;
     }
 
-    public async Task<TokenDefinitionDto?> GetByIdAsync(string id, string userId)
+    public async Task<TokenDefinitionDto?> GetByIdAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var token = await _tokenRepository.GetByIdAsync(id);
+        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
         if (token == null || token.UserId != userId)
         {
             return null;
@@ -173,13 +173,13 @@ public class TokenDefinitionService : ITokenDefinitionService
         return token.ToDto();
     }
 
-    public async Task<IEnumerable<TokenDefinitionDto>> GetUserTokensAsync(string userId)
+    public async Task<IEnumerable<TokenDefinitionDto>> GetUserTokensAsync(string userId, CancellationToken cancellationToken = default)
     {
-        var tokens = await _tokenRepository.GetByUserIdAsync(userId);
+        var tokens = await _tokenRepository.GetByUserIdAsync(userId, cancellationToken);
         return tokens.Select(t => t.ToDto());
     }
 
-    public async Task<TokenDefinitionDto> CreateAsync(CreateTokenDefinitionRequest request, string userId)
+    public async Task<TokenDefinitionDto> CreateAsync(CreateTokenDefinitionRequest request, string userId, CancellationToken cancellationToken = default)
     {
         var token = new TokenDefinition
         {
@@ -193,13 +193,13 @@ public class TokenDefinitionService : ITokenDefinitionService
             UpdatedAt = DateTime.UtcNow
         };
 
-        await _tokenRepository.AddAsync(token);
+        await _tokenRepository.AddAsync(token, cancellationToken);
         return token.ToDto();
     }
 
-    public async Task<TokenDefinitionDto?> UpdateAsync(string id, UpdateTokenDefinitionRequest request, string userId)
+    public async Task<TokenDefinitionDto?> UpdateAsync(string id, UpdateTokenDefinitionRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        var token = await _tokenRepository.GetByIdAsync(id);
+        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
         if (token == null || token.UserId != userId)
         {
             return null;
@@ -211,19 +211,19 @@ public class TokenDefinitionService : ITokenDefinitionService
         token.Type = request.Type;
         token.UpdatedAt = DateTime.UtcNow;
 
-        await _tokenRepository.UpdateAsync(token);
+        await _tokenRepository.UpdateAsync(token, cancellationToken);
         return token.ToDto();
     }
 
-    public async Task<bool> DeleteAsync(string id, string userId)
+    public async Task<bool> DeleteAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var token = await _tokenRepository.GetByIdAsync(id);
+        var token = await _tokenRepository.GetByIdAsync(id, cancellationToken);
         if (token == null || token.UserId != userId)
         {
             return false;
         }
 
-        await _tokenRepository.DeleteAsync(id);
+        await _tokenRepository.DeleteAsync(id, cancellationToken);
         return true;
     }
 }

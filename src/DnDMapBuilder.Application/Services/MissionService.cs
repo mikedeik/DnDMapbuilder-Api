@@ -19,15 +19,15 @@ public class MissionService : IMissionService
         _campaignRepository = campaignRepository;
     }
 
-    public async Task<MissionDto?> GetByIdAsync(string id, string userId)
+    public async Task<MissionDto?> GetByIdAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var mission = await _missionRepository.GetWithMapsAsync(id);
+        var mission = await _missionRepository.GetWithMapsAsync(id, cancellationToken);
         if (mission == null)
         {
             return null;
         }
 
-        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
         if (campaign == null || campaign.OwnerId != userId)
         {
             return null;
@@ -36,21 +36,21 @@ public class MissionService : IMissionService
         return mission.ToDto();
     }
 
-    public async Task<IEnumerable<MissionDto>> GetByCampaignIdAsync(string campaignId, string userId)
+    public async Task<IEnumerable<MissionDto>> GetByCampaignIdAsync(string campaignId, string userId, CancellationToken cancellationToken = default)
     {
-        var campaign = await _campaignRepository.GetByIdAsync(campaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(campaignId, cancellationToken);
         if (campaign == null || campaign.OwnerId != userId)
         {
             return Enumerable.Empty<MissionDto>();
         }
 
-        var missions = await _missionRepository.GetByCampaignIdAsync(campaignId);
+        var missions = await _missionRepository.GetByCampaignIdAsync(campaignId, cancellationToken);
         return missions.Select(m => m.ToDto());
     }
 
-    public async Task<MissionDto> CreateAsync(CreateMissionRequest request, string userId)
+    public async Task<MissionDto> CreateAsync(CreateMissionRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        var campaign = await _campaignRepository.GetByIdAsync(request.CampaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(request.CampaignId, cancellationToken);
         if (campaign == null || campaign.OwnerId != userId)
         {
             throw new UnauthorizedAccessException("You don't have permission to add missions to this campaign.");
@@ -66,19 +66,19 @@ public class MissionService : IMissionService
             UpdatedAt = DateTime.UtcNow
         };
 
-        await _missionRepository.AddAsync(mission);
+        await _missionRepository.AddAsync(mission, cancellationToken);
         return mission.ToDto();
     }
 
-    public async Task<MissionDto?> UpdateAsync(string id, UpdateMissionRequest request, string userId)
+    public async Task<MissionDto?> UpdateAsync(string id, UpdateMissionRequest request, string userId, CancellationToken cancellationToken = default)
     {
-        var mission = await _missionRepository.GetByIdAsync(id);
+        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
         if (mission == null)
         {
             return null;
         }
 
-        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
         if (campaign == null || campaign.OwnerId != userId)
         {
             return null;
@@ -88,25 +88,25 @@ public class MissionService : IMissionService
         mission.Description = request.Description;
         mission.UpdatedAt = DateTime.UtcNow;
 
-        await _missionRepository.UpdateAsync(mission);
+        await _missionRepository.UpdateAsync(mission, cancellationToken);
         return mission.ToDto();
     }
 
-    public async Task<bool> DeleteAsync(string id, string userId)
+    public async Task<bool> DeleteAsync(string id, string userId, CancellationToken cancellationToken = default)
     {
-        var mission = await _missionRepository.GetByIdAsync(id);
+        var mission = await _missionRepository.GetByIdAsync(id, cancellationToken);
         if (mission == null)
         {
             return false;
         }
 
-        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId);
+        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
         if (campaign == null || campaign.OwnerId != userId)
         {
             return false;
         }
 
-        await _missionRepository.DeleteAsync(id);
+        await _missionRepository.DeleteAsync(id, cancellationToken);
         return true;
     }
 }

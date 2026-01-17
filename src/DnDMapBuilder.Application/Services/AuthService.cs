@@ -21,16 +21,16 @@ public class AuthService : IAuthService
         _jwtService = jwtService;
     }
 
-    public async Task<AuthResponse?> RegisterAsync(RegisterRequest request)
+    public async Task<AuthResponse?> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
         // Check if user already exists
-        var existingUser = await _userRepository.GetByEmailAsync(request.Email);
+        var existingUser = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (existingUser != null)
         {
             return null; // User already exists
         }
 
-        var existingUsername = await _userRepository.GetByUsernameAsync(request.Username);
+        var existingUsername = await _userRepository.GetByUsernameAsync(request.Username, cancellationToken);
         if (existingUsername != null)
         {
             return null; // Username already taken
@@ -49,7 +49,7 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow
         };
 
-        await _userRepository.AddAsync(user);
+        await _userRepository.AddAsync(user, cancellationToken);
 
         var token = _jwtService.GenerateToken(user.Id, user.Email, user.Role);
 
@@ -63,9 +63,9 @@ public class AuthService : IAuthService
         );
     }
 
-    public async Task<AuthResponse?> LoginAsync(LoginRequest request)
+    public async Task<AuthResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        var user = await _userRepository.GetByEmailAsync(request.Email);
+        var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (user == null)
         {
             return null; // User not found
@@ -93,9 +93,9 @@ public class AuthService : IAuthService
         );
     }
 
-    public async Task<bool> ApproveUserAsync(string userId, bool approved)
+    public async Task<bool> ApproveUserAsync(string userId, bool approved, CancellationToken cancellationToken = default)
     {
-        var user = await _userRepository.GetByIdAsync(userId);
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
         {
             return false;
@@ -104,13 +104,13 @@ public class AuthService : IAuthService
         user.Status = approved ? "approved" : "rejected";
         user.UpdatedAt = DateTime.UtcNow;
 
-        await _userRepository.UpdateAsync(user);
+        await _userRepository.UpdateAsync(user, cancellationToken);
         return true;
     }
 
-    public async Task<IEnumerable<UserDto>> GetPendingUsersAsync()
+    public async Task<IEnumerable<UserDto>> GetPendingUsersAsync(CancellationToken cancellationToken = default)
     {
-        var users = await _userRepository.GetPendingUsersAsync();
+        var users = await _userRepository.GetPendingUsersAsync(cancellationToken);
         return users.Select(u => u.ToDto());
     }
 }
