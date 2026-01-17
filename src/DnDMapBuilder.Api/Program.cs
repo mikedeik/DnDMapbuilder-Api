@@ -19,20 +19,18 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "DnD Map Builder API", Version = "v1" });
     
-    // c.AddSecurityDefinition(
-    //     "Bearer",
-    //     new OpenApiSecurityScheme
-    //     {
-    //         In = ParameterLocation.Header,
-    //         Description = "Please enter a valid token.",
-    //         Name = "Authorization",
-    //         Type = SecuritySchemeType.Http,
-    //         BearerFormat = "JWT",
-    //         Scheme = "Bearer",
-    //     }
-    // );
-    //
-    // c.AddSecurityRequirement(document => new() { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] });
+    c.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Authorization header using the Bearer scheme."
+    });
+
+    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
 });
 
 // Database
