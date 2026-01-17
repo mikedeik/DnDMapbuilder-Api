@@ -11,6 +11,8 @@ builder.AddProject<Projects.DnDMapBuilder_Api>("dndmapapi")
     .WithReference(sql)
     .WithEnvironment("ConnectionStrings__DefaultConnection", sql)
     .WaitFor(sql)
+    .WithEnvironment("ADMIN_EMAIL", "admin@test.com")
+    .WithEnvironment("ADMIN_DEFAULT_PASSWORD", "1234")
     .WithEnvironment("MIGRATIONS_EXECUTE", "true");
 
 builder.Build().Run();
