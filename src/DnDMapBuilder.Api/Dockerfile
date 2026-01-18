@@ -29,15 +29,15 @@ RUN dotnet publish "DnDMapBuilder.Api.csproj" \
     /p:UseAppHost=false \
     /p:PublishReadyToRun=true
 
-# Stage 3: Runtime stage using minimal runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
+# Stage 3: Runtime stage (using standard image for SQL Server compatibility)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S dotnetuser && \
-    adduser -u 1001 -S dotnetuser -G dotnetuser
+RUN groupadd -g 1001 dotnetuser && \
+    useradd -u 1001 -g dotnetuser dotnetuser
 
 WORKDIR /app
 
@@ -63,6 +63,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_HTTP_PORT=8080
 ENV ASPNETCORE_HTTPS_PORT=8443
+# Enable globalization for SQL Server compatibility
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 # Entry point
 ENTRYPOINT ["dotnet", "DnDMapBuilder.Api.dll"]

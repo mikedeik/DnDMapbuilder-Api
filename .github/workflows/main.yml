@@ -121,6 +121,8 @@ jobs:
           echo "Running database migrations..."
           docker run --rm \
             -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+            -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
+            --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest \
             sh -c "dotnet ef database update --project src/DnDMapBuilder.Data/DnDMapBuilder.Data.csproj --startup-project src/DnDMapBuilder.Api/DnDMapBuilder.Api.csproj --context DnDMapBuilderDbContext || exit 1"
           echo "Database migrations completed"
@@ -141,6 +143,7 @@ jobs:
             -e ASPNETCORE_ENVIRONMENT=Production \
             -e ASPNETCORE_URLS="http://+:8080;https://+:8443" \
             -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+            -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
             -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
             --health-cmd="curl -f http://localhost:8080/health/live || exit 1" \
