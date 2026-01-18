@@ -18,6 +18,7 @@ public class MissionRepository : GenericRepository<Mission>, IMissionRepository
     public async Task<IEnumerable<Mission>> GetByCampaignIdAsync(string campaignId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Where(m => m.CampaignId == campaignId)
             .Include(m => m.Maps)
             .ToListAsync(cancellationToken);
@@ -26,6 +27,7 @@ public class MissionRepository : GenericRepository<Mission>, IMissionRepository
     public async Task<Mission?> GetWithMapsAsync(string id, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Include(m => m.Maps)
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
     }

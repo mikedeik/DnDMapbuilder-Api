@@ -58,4 +58,31 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
         return await _dbSet.FindAsync(new object[] { id }, cancellationToken) != null;
     }
+
+    /// <summary>
+    /// Gets a paginated list of all entities.
+    /// </summary>
+    /// <param name="pageNumber">The page number (1-based)</param>
+    /// <param name="pageSize">The page size</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>A paginated response with items and metadata</returns>
+    public virtual async Task<(IEnumerable<T> Items, int TotalCount)> GetPagedAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        // Validate pagination parameters
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 100) pageSize = 100;
+
+        // Get total count
+        var totalCount = await _dbSet.AsNoTracking().CountAsync(cancellationToken);
+
+        // Get paginated items
+        var items = await _dbSet
+            .AsNoTracking()
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
 }

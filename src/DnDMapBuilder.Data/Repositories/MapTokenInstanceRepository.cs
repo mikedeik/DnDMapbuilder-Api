@@ -18,6 +18,7 @@ public class MapTokenInstanceRepository : GenericRepository<MapTokenInstance>, I
     public async Task<IEnumerable<MapTokenInstance>> GetByMapIdAsync(string mapId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Where(t => t.MapId == mapId)
             .Include(t => t.Token)
             .ToListAsync(cancellationToken);

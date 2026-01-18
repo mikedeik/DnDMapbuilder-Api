@@ -18,6 +18,7 @@ public class TokenDefinitionRepository : GenericRepository<TokenDefinition>, ITo
     public async Task<IEnumerable<TokenDefinition>> GetByUserIdAsync(string userId, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Where(t => t.UserId == userId)
             .ToListAsync(cancellationToken);
     }
@@ -25,6 +26,7 @@ public class TokenDefinitionRepository : GenericRepository<TokenDefinition>, ITo
     public async Task<IEnumerable<TokenDefinition>> GetByTypeAsync(string type, CancellationToken cancellationToken = default)
     {
         return await _dbSet
+            .AsNoTracking()
             .Where(t => t.Type == type)
             .ToListAsync(cancellationToken);
     }

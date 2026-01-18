@@ -17,21 +17,21 @@ public class UserRepository : GenericRepository<User>, IUserRepository
 
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
     }
 
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
+        return await _dbSet.AsNoTracking().FirstOrDefaultAsync(u => u.Username == username, cancellationToken);
     }
 
     public async Task<IEnumerable<User>> GetPendingUsersAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbSet.Where(u => u.Status == "pending").ToListAsync(cancellationToken);
+        return await _dbSet.AsNoTracking().Where(u => u.Status == "pending").ToListAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<User>> GetUsersByRoleAsync(string role, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.Where(u => u.Role == role).ToListAsync(cancellationToken);
+        return await _dbSet.AsNoTracking().Where(u => u.Role == role).ToListAsync(cancellationToken);
     }
 }
