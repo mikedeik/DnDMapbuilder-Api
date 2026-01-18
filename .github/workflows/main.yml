@@ -123,22 +123,8 @@ jobs:
           # Pull the latest API image
           docker pull ghcr.io/${IMAGE_NAME}:latest
 
-          # Run database migrations before deploying new container
-          echo "Running database migrations..."
-          docker run --rm \
-            -e ConnectionStrings__DefaultConnection="${DB_CONNECTION_STRING}" \
-            -e ADMIN_EMAIL="${ADMIN_EMAIL}" \
-            -e ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD}" \
-            -e JWT_SECRET="${JWT_SECRET}" \
-            -e JWT_ISSUER="${JWT_ISSUER}" \
-            -e JWT_AUDIENCE="${JWT_AUDIENCE}" \
-            -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
-            --network dnd-network \
-            ghcr.io/${IMAGE_NAME}:latest \
-            sh -c "dotnet ef database update --project src/DnDMapBuilder.Data/DnDMapBuilder.Data.csproj --startup-project src/DnDMapBuilder.Api/DnDMapBuilder.Api.csproj --context DnDMapBuilderDbContext || exit 1"
-          echo "Database migrations completed"
-
           # Stop and remove old API container
+          # Note: Migrations run automatically on app startup via DbInitializer.MigrateAsync()
           docker stop dnd-api || true
           docker rm dnd-api || true
 
@@ -161,7 +147,7 @@ jobs:
             -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
             -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
-            --health-cmd="curl -f http://localhost:8080/health/live || exit 1" \
+            --health-cmd="wget -q --spider http://localhost:8080/health/live || exit 1" \
             --health-interval=30s \
             --health-timeout=3s \
             --health-retries=3 \
@@ -188,7 +174,7 @@ jobs:
           # Wait for API container to be healthy
           echo "Waiting for API container to be healthy..."
           for i in {1..30}; do
-            if docker exec dnd-api curl -f http://localhost:8080/health/live > /dev/null 2>&1; then
+            if docker exec dnd-api wget -q --spider http://localhost:8080/health/live 2>/dev/null; then
               echo "✓ API container is healthy"
               break
             fi
