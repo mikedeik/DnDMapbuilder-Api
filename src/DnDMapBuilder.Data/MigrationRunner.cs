@@ -40,17 +40,17 @@ public class MigrationRunner
 
                 // Apply migrations
                 await _context.Database.MigrateAsync(cancellationToken);
-                _logger.LogInformation("✓ Database migrations completed successfully");
+                _logger.LogInformation(" Database migrations completed successfully");
             }
             else
             {
-                _logger.LogInformation("✓ Database is up to date. No migrations to apply.");
+                _logger.LogInformation(" Database is up to date. No migrations to apply.");
             }
 
             // Initialize database with seed data if needed
             _logger.LogInformation("Initializing database with seed data...");
             await DbInitializer.InitializeAsync(_context);
-            _logger.LogInformation("✓ Database initialization completed successfully");
+            _logger.LogInformation(" Database initialization completed successfully");
 
             return true;
         }
@@ -84,11 +84,11 @@ public class MigrationRunner
 
                 // Apply migrations
                 await _context.Database.MigrateAsync(cancellationToken);
-                _logger.LogInformation("✓ Database migrations completed successfully");
+                _logger.LogInformation("Database migrations completed successfully");
             }
             else
             {
-                _logger.LogInformation("✓ Database is up to date. No migrations to apply.");
+                _logger.LogInformation("Database is up to date. No migrations to apply.");
             }
 
             return true;
@@ -136,8 +136,8 @@ public class DatabaseInfo
         return $"Database Info:\n" +
                $"  - Is Created: {IsDatabaseCreated}\n" +
                $"  - Applied Migrations: {AppliedMigrationsCount}\n" +
-               $"    {string.Join("\n    ", AppliedMigrations.Select(m => $"✓ {m}"))}\n" +
+               $"    {string.Join("\n    ", AppliedMigrations.Select(m => $"{m}"))}\n" +
                $"  - Pending Migrations: {PendingMigrationsCount}\n" +
-               $"    {string.Join("\n    ", PendingMigrations.Select(m => $"⚠ {m}"))}";
+               $"    {string.Join("\n    ", PendingMigrations.Select(m => $"{m}"))}";
     }
 }
