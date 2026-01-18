@@ -128,8 +128,10 @@ jobs:
           docker stop dnd-api || true
           docker rm dnd-api || true
 
-          # Create uploads directory on host if it doesn't exist
+          # Create uploads directory on host with correct permissions for container user (uid 1001)
           mkdir -p ~/dnd-api-uploads
+          sudo chown -R 1001:1001 ~/dnd-api-uploads
+          sudo chmod -R 755 ~/dnd-api-uploads
 
           # Run new API container with environment variables
           docker run -d \
