@@ -167,9 +167,11 @@ if (app.Environment.IsDevelopment())
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "DnD Map Builder API v1");
     });
-}
 
-app.UseHttpsRedirection();
+    // Only use HTTPS redirection in development
+    // In production, nginx handles SSL termination
+    app.UseHttpsRedirection();
+}
 
 // Add response caching middleware (should be early in pipeline)
 app.UseResponseCachingConfiguration();
