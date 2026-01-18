@@ -37,9 +37,9 @@ public class GameMapsController : ControllerBase
     /// <returns>The game map details or 404 if not found</returns>
     [HttpGet("{id}")]
     [ResponseCache(CacheProfileName = "Long300")]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id)
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id, CancellationToken cancellationToken)
     {
-        var map = await _mapService.GetByIdAsync(id, GetUserId());
+        var map = await _mapService.GetByIdAsync(id, GetUserId(), cancellationToken);
 
         if (map == null)
         {
@@ -53,12 +53,13 @@ public class GameMapsController : ControllerBase
     /// Gets all game maps for a specific mission.
     /// </summary>
     /// <param name="missionId">The mission ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of game maps in the mission</returns>
     [HttpGet("mission/{missionId}")]
     [ResponseCache(CacheProfileName = "Long300")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId)
+    public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId, CancellationToken cancellationToken)
     {
-        var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId());
+        var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId(), cancellationToken);
         return Ok(new ApiResponse<IEnumerable<GameMapDto>>(true, maps));
     }
 
@@ -66,13 +67,14 @@ public class GameMapsController : ControllerBase
     /// Creates a new game map in a mission.
     /// </summary>
     /// <param name="request">Create map request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The created game map details or 403 if unauthorized</returns>
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> CreateMap([FromBody] CreateMapRequest request)
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> CreateMap([FromBody] CreateMapRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var map = await _mapService.CreateAsync(request, GetUserId());
+            var map = await _mapService.CreateAsync(request, GetUserId(), cancellationToken);
             return CreatedAtAction(nameof(GetMap), new { id = map.Id }, new ApiResponse<GameMapDto>(true, map, "Map created."));
         }
         catch (UnauthorizedAccessException ex)
@@ -86,11 +88,12 @@ public class GameMapsController : ControllerBase
     /// </summary>
     /// <param name="id">The game map ID to update</param>
     /// <param name="request">Update map request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The updated game map details or 404 if not found</returns>
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<GameMapDto>>> UpdateMap(string id, [FromBody] UpdateMapRequest request)
+    public async Task<ActionResult<ApiResponse<GameMapDto>>> UpdateMap(string id, [FromBody] UpdateMapRequest request, CancellationToken cancellationToken)
     {
-        var map = await _mapService.UpdateAsync(id, request, GetUserId());
+        var map = await _mapService.UpdateAsync(id, request, GetUserId(), cancellationToken);
 
         if (map == null)
         {
@@ -104,11 +107,12 @@ public class GameMapsController : ControllerBase
     /// Deletes a game map.
     /// </summary>
     /// <param name="id">The game map ID to delete</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Success indicator or 404 if not found</returns>
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteMap(string id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteMap(string id, CancellationToken cancellationToken)
     {
-        var result = await _mapService.DeleteAsync(id, GetUserId());
+        var result = await _mapService.DeleteAsync(id, GetUserId(), cancellationToken);
 
         if (!result)
         {
@@ -123,11 +127,12 @@ public class GameMapsController : ControllerBase
     /// </summary>
     /// <param name="id">The game map ID</param>
     /// <param name="image">The image file to upload</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Upload response with file details or error status</returns>
     [EnableRateLimiting("fileUpload")]
     [HttpPost("{id}/image")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadMapImage(string id, IFormFile image)
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadMapImage(string id, IFormFile image, CancellationToken cancellationToken)
     {
         try
         {
@@ -146,7 +151,7 @@ public class GameMapsController : ControllerBase
                 return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
 
             // Get map to verify ownership
-            var map = await _mapService.GetByIdAsync(id, GetUserId());
+            var map = await _mapService.GetByIdAsync(id, GetUserId(), cancellationToken);
             if (map == null)
                 return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Map not found."));
 
@@ -155,7 +160,8 @@ public class GameMapsController : ControllerBase
                 image.OpenReadStream(),
                 image.FileName,
                 image.ContentType,
-                "maps"
+                "maps",
+                cancellationToken
             );
 
             // Update map with file metadata
@@ -180,7 +186,7 @@ public class GameMapsController : ControllerBase
                 tokenRequests,
                 updatedMap.GridColor,
                 updatedMap.GridOpacity
-            ), GetUserId());
+            ), GetUserId(), cancellationToken);
 
             var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
             return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));

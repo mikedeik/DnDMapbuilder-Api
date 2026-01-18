@@ -26,10 +26,10 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
         // Create user via user management service
-        var userDto = await _userManagementService.RegisterAsync(request);
+        var userDto = await _userManagementService.RegisterAsync(request, cancellationToken);
 
         if (userDto == null)
         {
@@ -42,7 +42,7 @@ public class AuthController : ControllerBase
 
         // Auto-login after successful registration
         var loginRequest = new LoginRequest(request.Email, request.Password);
-        var authResponse = await _authService.LoginAsync(loginRequest);
+        var authResponse = await _authService.LoginAsync(loginRequest, cancellationToken);
 
         if (authResponse == null)
         {
@@ -57,9 +57,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        var result = await _authService.LoginAsync(request);
+        var result = await _authService.LoginAsync(request, cancellationToken);
 
         if (result == null)
         {
@@ -76,17 +76,17 @@ public class AuthController : ControllerBase
     [Authorize(Roles = "admin")]
     [HttpGet("pending-users")]
     [ResponseCache(CacheProfileName = "Short10")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers()
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers(CancellationToken cancellationToken)
     {
-        var users = await _userManagementService.GetPendingUsersAsync();
+        var users = await _userManagementService.GetPendingUsersAsync(cancellationToken);
         return Ok(new ApiResponse<IEnumerable<UserDto>>(true, users));
     }
 
     [Authorize(Roles = "admin")]
     [HttpPost("approve-user")]
-    public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request)
+    public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request, CancellationToken cancellationToken)
     {
-        var result = await _userManagementService.ApproveUserAsync(request.UserId, request.Approved);
+        var result = await _userManagementService.ApproveUserAsync(request.UserId, request.Approved, cancellationToken);
 
         if (!result)
         {

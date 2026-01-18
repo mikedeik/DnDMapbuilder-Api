@@ -33,12 +33,13 @@ public class TokensController : ControllerBase
     /// <summary>
     /// Gets all token definitions for the current user.
     /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of user's token definitions</returns>
     [HttpGet]
     [ResponseCache(CacheProfileName = "Long300")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens()
+    public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens(CancellationToken cancellationToken)
     {
-        var tokens = await _tokenService.GetUserTokensAsync(GetUserId());
+        var tokens = await _tokenService.GetUserTokensAsync(GetUserId(), cancellationToken);
         return Ok(new ApiResponse<IEnumerable<TokenDefinitionDto>>(true, tokens));
     }
 
@@ -46,12 +47,13 @@ public class TokensController : ControllerBase
     /// Gets a token definition by ID.
     /// </summary>
     /// <param name="id">The token definition ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The token definition details or 404 if not found</returns>
     [HttpGet("{id}")]
     [ResponseCache(CacheProfileName = "Long300")]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> GetToken(string id)
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> GetToken(string id, CancellationToken cancellationToken)
     {
-        var token = await _tokenService.GetByIdAsync(id, GetUserId());
+        var token = await _tokenService.GetByIdAsync(id, GetUserId(), cancellationToken);
 
         if (token == null)
         {
@@ -65,11 +67,12 @@ public class TokensController : ControllerBase
     /// Creates a new token definition.
     /// </summary>
     /// <param name="request">Create token request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The created token definition details</returns>
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> CreateToken([FromBody] CreateTokenDefinitionRequest request)
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> CreateToken([FromBody] CreateTokenDefinitionRequest request, CancellationToken cancellationToken)
     {
-        var token = await _tokenService.CreateAsync(request, GetUserId());
+        var token = await _tokenService.CreateAsync(request, GetUserId(), cancellationToken);
         return CreatedAtAction(nameof(GetToken), new { id = token.Id }, new ApiResponse<TokenDefinitionDto>(true, token, "Token created."));
     }
 
@@ -78,11 +81,12 @@ public class TokensController : ControllerBase
     /// </summary>
     /// <param name="id">The token definition ID to update</param>
     /// <param name="request">Update token request</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The updated token definition details or 404 if not found</returns>
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> UpdateToken(string id, [FromBody] UpdateTokenDefinitionRequest request)
+    public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> UpdateToken(string id, [FromBody] UpdateTokenDefinitionRequest request, CancellationToken cancellationToken)
     {
-        var token = await _tokenService.UpdateAsync(id, request, GetUserId());
+        var token = await _tokenService.UpdateAsync(id, request, GetUserId(), cancellationToken);
 
         if (token == null)
         {
@@ -96,11 +100,12 @@ public class TokensController : ControllerBase
     /// Deletes a token definition.
     /// </summary>
     /// <param name="id">The token definition ID to delete</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Success indicator or 404 if not found</returns>
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteToken(string id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteToken(string id, CancellationToken cancellationToken)
     {
-        var result = await _tokenService.DeleteAsync(id, GetUserId());
+        var result = await _tokenService.DeleteAsync(id, GetUserId(), cancellationToken);
 
         if (!result)
         {
@@ -115,11 +120,12 @@ public class TokensController : ControllerBase
     /// </summary>
     /// <param name="id">The token definition ID</param>
     /// <param name="image">The image file to upload</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Upload response with file details or error status</returns>
     [EnableRateLimiting("fileUpload")]
     [HttpPost("{id}/image")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadTokenImage(string id, IFormFile image)
+    public async Task<ActionResult<ApiResponse<ImageUploadResponse>>> UploadTokenImage(string id, IFormFile image, CancellationToken cancellationToken)
     {
         try
         {
@@ -138,7 +144,7 @@ public class TokensController : ControllerBase
                 return BadRequest(new ApiResponse<ImageUploadResponse>(false, null, "Invalid file format. Allowed: PNG, JPEG, WebP."));
 
             // Get token to verify ownership
-            var token = await _tokenService.GetByIdAsync(id, GetUserId());
+            var token = await _tokenService.GetByIdAsync(id, GetUserId(), cancellationToken);
             if (token == null)
                 return NotFound(new ApiResponse<ImageUploadResponse>(false, null, "Token not found."));
 
@@ -147,7 +153,8 @@ public class TokensController : ControllerBase
                 image.OpenReadStream(),
                 image.FileName,
                 image.ContentType,
-                "tokens"
+                "tokens",
+                cancellationToken
             );
 
             // Update token with file metadata
@@ -165,7 +172,7 @@ public class TokensController : ControllerBase
                 updatedToken.ImageUrl,
                 updatedToken.Size,
                 updatedToken.Type
-            ), GetUserId());
+            ), GetUserId(), cancellationToken);
 
             var response = new ImageUploadResponse(fileId, result.ImageUrl ?? "", image.ContentType ?? "application/octet-stream", image.Length);
             return Ok(new ApiResponse<ImageUploadResponse>(true, response, "Image uploaded successfully."));
