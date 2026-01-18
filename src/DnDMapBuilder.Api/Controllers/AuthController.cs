@@ -75,6 +75,7 @@ public class AuthController : ControllerBase
 
     [Authorize(Roles = "admin")]
     [HttpGet("pending-users")]
+    [ResponseCache(CacheProfileName = "Short10")]
     public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers()
     {
         var users = await _userManagementService.GetPendingUsersAsync();

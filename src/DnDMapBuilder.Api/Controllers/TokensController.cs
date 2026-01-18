@@ -35,6 +35,7 @@ public class TokensController : ControllerBase
     /// </summary>
     /// <returns>Collection of user's token definitions</returns>
     [HttpGet]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens()
     {
         var tokens = await _tokenService.GetUserTokensAsync(GetUserId());
@@ -47,6 +48,7 @@ public class TokensController : ControllerBase
     /// <param name="id">The token definition ID</param>
     /// <returns>The token definition details or 404 if not found</returns>
     [HttpGet("{id}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<TokenDefinitionDto>>> GetToken(string id)
     {
         var token = await _tokenService.GetByIdAsync(id, GetUserId());

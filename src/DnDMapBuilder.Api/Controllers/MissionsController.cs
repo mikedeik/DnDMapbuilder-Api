@@ -33,6 +33,7 @@ public class MissionsController : ControllerBase
     /// <param name="id">The mission ID</param>
     /// <returns>The mission details or 404 if not found</returns>
     [HttpGet("{id}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<MissionDto>>> GetMission(string id)
     {
         var mission = await _missionService.GetByIdAsync(id, GetUserId());
@@ -51,6 +52,7 @@ public class MissionsController : ControllerBase
     /// <param name="campaignId">The campaign ID</param>
     /// <returns>Collection of missions in the campaign</returns>
     [HttpGet("campaign/{campaignId}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<IEnumerable<MissionDto>>>> GetMissionsByCampaign(string campaignId)
     {
         var missions = await _missionService.GetByCampaignIdAsync(campaignId, GetUserId());

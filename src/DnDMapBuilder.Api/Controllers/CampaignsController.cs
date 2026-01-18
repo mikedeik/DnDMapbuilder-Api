@@ -28,6 +28,7 @@ public class CampaignsController : ControllerBase
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
 
     [HttpGet]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CampaignDto>>>> GetUserCampaigns()
     {
         var campaigns = await _campaignService.GetUserCampaignsAsync(GetUserId());
@@ -35,10 +36,11 @@ public class CampaignsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<CampaignDto>>> GetCampaign(string id)
     {
         var campaign = await _campaignService.GetByIdAsync(id, GetUserId());
-        
+
         if (campaign == null)
         {
             return NotFound(new ApiResponse<CampaignDto>(false, null, "Campaign not found."));

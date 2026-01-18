@@ -36,6 +36,7 @@ public class GameMapsController : ControllerBase
     /// <param name="id">The game map ID</param>
     /// <returns>The game map details or 404 if not found</returns>
     [HttpGet("{id}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id)
     {
         var map = await _mapService.GetByIdAsync(id, GetUserId());
@@ -54,6 +55,7 @@ public class GameMapsController : ControllerBase
     /// <param name="missionId">The mission ID</param>
     /// <returns>Collection of game maps in the mission</returns>
     [HttpGet("mission/{missionId}")]
+    [ResponseCache(CacheProfileName = "Long300")]
     public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId)
     {
         var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId());

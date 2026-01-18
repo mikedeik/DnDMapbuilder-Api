@@ -15,8 +15,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // Add services to the container
-builder.Services.AddControllers();
+var controllerBuilder = builder.Services.AddControllers();
+controllerBuilder.ConfigureCacheProfiles();
 builder.Services.AddEndpointsApiExplorer();
+
+// Response Caching
+builder.Services.AddResponseCachingConfiguration();
 
 // API Versioning
 builder.Services.AddApiVersioning(options =>
@@ -151,6 +155,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Add response caching middleware (should be early in pipeline)
+app.UseResponseCachingConfiguration();
+
+// Add cache control headers
+app.UseCacheControlHeaders();
 
 // Add security headers middleware
 app.UseSecurityHeaders();
