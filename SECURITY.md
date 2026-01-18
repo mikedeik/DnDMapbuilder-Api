@@ -1,164 +1,192 @@
-# Security Configuration
+# Security Policy and Procedures
 
-## Admin User Setup
+## Overview
 
-The application seeds a default admin user on first run. This user is required to approve new user registrations.
+This document outlines the security measures, best practices, and incident response procedures for the DnDMapBuilder backend API.
 
-### Environment Variables
+## Security Features
 
-Configure these environment variables to set secure admin credentials:
+### Authentication
 
-| Variable | Description | Required | Example |
-|----------|-------------|----------|---------|
-| `ADMIN_DEFAULT_PASSWORD` | Admin user password | Yes (Production) | Use a strong password |
-| `ADMIN_EMAIL` | Admin user email | Yes (Production) | `your-email@domain.com` |
+- **JWT (JSON Web Tokens)** for stateless authentication
+  - Configurable secret key (via environment or Key Vault)
+  - HS256 signing algorithm
+  - Configurable expiration (default: 24 hours)
+  - Token validation includes issuer, audience, and signature checks
+  - Location: `src/DnDMapBuilder.Infrastructure/Security/JwtService.cs`
 
-### GitHub Secrets Configuration
+### Authorization
 
-Add these secrets to your backend repository (`Settings → Secrets and variables → Actions → Secrets`):
+- **Role-Based Access Control (RBAC)**
+  - User role: Standard user with personal resource access
+  - Admin role: Administrative operations (user approval, etc.)
+  - Authorization enforced via `[Authorize]` and `[Authorize(Roles = "admin")]` attributes
+  - Per-resource ownership verification for multi-tenant scenarios
 
-```
-ADMIN_DEFAULT_PASSWORD: YourVerySecurePassword123!@#
-ADMIN_EMAIL: your-admin@yourdomain.com
-```
+### Password Security
 
-### Security Best Practices
+- **BCrypt hashing** with configurable work factor
+- Passwords are hashed before storage
+- Password verification without storing plaintext
+- Unit tests verify hash security and uniqueness
+- Service: `src/DnDMapBuilder.Application/Services/PasswordService.cs`
 
-#### 1. Never Use Default Credentials in Production
+## Data Protection
 
-**Bad (Development Only):**
+### HTTPS/TLS
+
+- HTTPS enforcement via middleware: `app.UseHttpsRedirection()`
+- All API communications encrypted in transit
+- TLS 1.2+ enforced by ASP.NET Core defaults
+
+### Secrets Management
+
+#### Development Environment
 ```bash
-ADMIN_DEFAULT_PASSWORD=Admin123!
-ADMIN_EMAIL=admin@dndmapbuilder.com
+# Set up local secrets (not in source control)
+dotnet user-secrets init
+dotnet user-secrets set "JwtSettings:SecretKey" "your-dev-secret-key"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "your-dev-connection-string"
 ```
 
-**Good (Production):**
-```bash
-ADMIN_DEFAULT_PASSWORD=X9$mK#pL2@qR8vN4zT7hW!eA6fG5yU
-ADMIN_EMAIL=your-real-email@yourdomain.com
-```
+#### Production Environment
+- **Recommended:** Azure Key Vault or HashiCorp Vault
+- Environment variables for secrets:
+  - `JwtSettings__SecretKey`
+  - `ConnectionStrings__DefaultConnection`
+  - `Database__ConnectionString`
 
-#### 2. Generate Strong Passwords
+### SQL Injection Prevention
 
-Use a password generator with at least:
-- 20+ characters
-- Mix of uppercase, lowercase, numbers, and symbols
-- No dictionary words
+- **Entity Framework Core** with parameterized queries
+- All LINQ queries use parameter placeholders
+- No string concatenation or raw SQL for user-provided data
 
-Example generation:
-```bash
-# On Linux/Mac
-openssl rand -base64 32
+### XSS Protection
 
-# Or use a password manager like:
-# - 1Password
-# - Bitwarden
-# - LastPass
-```
+- **Security Headers Middleware** configured:
+  - X-Content-Type-Options: nosniff
+  - X-Frame-Options: DENY
+  - X-XSS-Protection: 1; mode=block
+  - Strict-Transport-Security for HTTPS enforcement
+  - Content-Security-Policy: default-src 'self'
 
-#### 3. Rotate Credentials Regularly
+### CORS (Cross-Origin Resource Sharing)
 
-- Change admin password every 90 days
-- Update the GitHub secret and redeploy
-- The new password takes effect on next deployment
+- Whitelist-based CORS configuration (not AllowAll)
+- Configurable allowed origins
+- Credentials support enabled for authenticated requests
 
-#### 4. Database Migrations
+## API Security
 
-When you first deploy or change credentials:
+### Rate Limiting
 
-**Development:**
-```bash
-# Use default credentials for local testing
-dotnet ef database update
-```
+- Anonymous users: 100 requests/minute
+- Authenticated users: 300 requests/minute
+- File uploads: 10 requests/minute
+- Returns 429 (Too Many Requests) with Retry-After header
 
-**Production:**
-```bash
-# Credentials are read from environment variables during container startup
-# The seed data runs automatically on first database creation
-```
+### File Upload Security
 
-#### 5. Initial Login
+- File size limits: Maps (5MB), Tokens (2MB), Default (10MB)
+- MIME type validation: image/png, image/jpeg, image/webp
+- Storage isolation and directory traversal protection
+- Comprehensive validation service with unit tests
 
-After deployment, login with your configured credentials:
+## Logging and Monitoring
 
-**Email:** The value you set in `ADMIN_EMAIL`
-**Password:** The value you set in `ADMIN_DEFAULT_PASSWORD`
+### Structured Logging
 
-**Important:** Change the password through the application UI immediately after first login (when this feature is implemented).
+- Serilog for structured, machine-readable logs
+- Correlation IDs for request tracing
+- Sensitive data filtering to prevent leakage
+- Environment-specific log levels (Debug in dev, Warning in prod)
 
-## Additional Security Measures
+### Request/Response Logging
 
-### JWT Configuration
+- RequestResponseLoggingMiddleware logs requests, responses, and duration
+- User identity tracking for authenticated requests
+- Correlation ID propagation
+- Excludes health check endpoints
 
-Ensure your JWT secrets are secure:
+### OpenTelemetry Tracing
 
-```bash
-# Generate a secure JWT secret:
-openssl rand -base64 64
-```
+- Distributed tracing for request flow
+- Custom metrics for security events
+- OTLP exporter for centralized collection
 
-Add to GitHub Secrets:
-- `JWT_SECRET`: Your generated secret
-- `JWT_ISSUER`: Your domain (e.g., `dndmaps-api.hostname.gr`)
-- `JWT_AUDIENCE`: Your frontend domain (e.g., `dndmaps.hostname.gr`)
+## OWASP Top 10 Compliance
 
-### Database Connection
+| Vulnerability | Status | Details |
+|---|---|---|
+| A01: Broken Access Control | ✓ | Authorization checks; resource ownership verified |
+| A02: Cryptographic Failures | ✓ | HTTPS enforced; BCrypt hashing; no hardcoded secrets |
+| A03: Injection | ✓ | EF Core parameterized queries; no command injection |
+| A04: Insecure Design | ✓ | Security headers; rate limiting; authentication required |
+| A05: Security Misconfiguration | ✓ | Security headers; proper CORS; reduced SQL logging |
+| A06: Vulnerable Components | ✓ | No vulnerable packages; .NET 10.0 latest |
+| A07: Authentication Failures | ✓ | JWT; BCrypt; user status verification |
+| A08: Data Integrity | ✓ | Secure CI/CD; code review required |
+| A09: Logging & Monitoring | ✓ | Serilog; request logging; OpenTelemetry tracing |
+| A10: SSRF | ✓ | No user-controlled URLs; no untrusted outbound requests |
 
-Use secure database credentials:
-- Strong database password
-- Restrict database access to your application server IP only
-- Use SSL/TLS for database connections if possible
+## Dependency Vulnerability Status
 
-### Deployment Checklist
+**Result:** No vulnerable packages identified
+- All NuGet packages up-to-date
+- Regular automated scanning recommended
+- .NET 10.0 runtime (latest stable)
 
-Before deploying to production, verify:
+## Best Practices for Deployment
 
-- [ ] `ADMIN_DEFAULT_PASSWORD` is set to a strong, unique password
-- [ ] `ADMIN_EMAIL` is set to a real email you control
-- [ ] `JWT_SECRET` is a secure random string (64+ characters)
-- [ ] `DB_CONNECTION_STRING` uses a strong database password
-- [ ] All secrets are stored in GitHub Secrets, not in code
-- [ ] The repository `.env` files are in `.gitignore`
-- [ ] No default credentials ("Admin123!") are used in production
+### Pre-Deployment Checklist
 
-## Troubleshooting
+- [ ] All tests passing (unit, integration, architecture)
+- [ ] No vulnerable dependencies (`dotnet list package --vulnerable`)
+- [ ] Secrets configured in Key Vault (not in code)
+- [ ] CORS origins configured for production domain
+- [ ] Security headers configured and tested
+- [ ] Database migrations tested
+- [ ] Health checks verified
+- [ ] Monitoring and alerting configured
 
-### Can't login with admin credentials
+### Security Update Frequency
 
-1. Check the container logs:
-```bash
-docker logs dnd-api --tail 100
-```
+- Critical: Immediate (within 24 hours)
+- High: Within 1 week
+- Medium: Within 2 weeks
+- Low: Next scheduled release
 
-2. Verify environment variables are set:
-```bash
-docker exec dnd-api printenv | grep ADMIN
-```
+## Incident Response
 
-3. Check the database has the admin user:
-```bash
-# Connect to your database and check Users table
-SELECT Username, Email, Role, Status FROM Users WHERE Role = 'admin';
-```
+### Reporting Security Issues
 
-### Need to reset admin password
+DO NOT create public GitHub issues for security vulnerabilities.
 
-1. Update the `ADMIN_DEFAULT_PASSWORD` secret in GitHub
-2. Drop and recreate the database (this will lose all data):
-```bash
-# SSH into your server
-docker exec dnd-api dotnet ef database drop --force
-docker restart dnd-api
-```
+Contact project maintainers directly with:
+- Detailed vulnerability description
+- Reproduction steps
+- Severity assessment
+- Allow 30 days for patch development
 
-Or manually update the password hash in the database:
-```bash
-# Generate new hash locally using BCrypt
-# Then update the database
-UPDATE Users SET PasswordHash = 'your-new-hash' WHERE Role = 'admin';
-```
+### Response Process
 
-## Contact
+1. Acknowledge receipt within 24 hours
+2. Assess severity and impact
+3. Develop and test patch
+4. Release security update with advisory
+5. Notify affected users
 
-For security issues, please contact the repository maintainer directly. Do not open public issues for security vulnerabilities.
+## Regular Security Activities
+
+- **Daily:** Monitor logs for errors; check health endpoints
+- **Weekly:** Review auth logs; check dependency notifications
+- **Monthly:** Security log analysis; vulnerability scanning
+- **Quarterly:** Full security audit; penetration testing prep
+- **Annually:** Third-party pen testing; compliance verification
+
+## References
+
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [ASP.NET Core Security](https://learn.microsoft.com/aspnet/core/security)
+- [JWT Best Practices](https://tools.ietf.org/html/rfc7519)
