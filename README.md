@@ -4,21 +4,47 @@ A comprehensive ASP.NET Web API for managing D&D campaigns, missions, maps, and 
 
 ## Architecture
 
-The solution is organized into the following projects:
+The solution follows a layered architecture with clean separation of concerns:
+
+### Project Organization
 
 - **DnDMapBuilder.Contracts**: DTOs, Requests, and Response models
 - **DnDMapBuilder.Data**: Entity Framework Core, Entities, DbContext, and Repositories
-- **DnDMapBuilder.Application**: Business logic and services
-- **DnDMapBuilder.Api**: ASP.NET Core Web API with controllers
-- **DnDMapBuilder.Aspire.AppHost**: .NET Aspire orchestration for local development
-- **DnDMapBuilder.Aspire.ServiceDefaults**: Shared service defaults for Aspire
+- **DnDMapBuilder.Application**: Business logic, services, and domain validation
+- **DnDMapBuilder.Infrastructure**: Cross-cutting concerns (logging, telemetry, middleware, security)
+- **DnDMapBuilder.Api**: ASP.NET Core Web API with controllers and route handlers
+- **DnDMapBuilder.UnitTests**: Unit tests with mocked dependencies
+- **DnDMapBuilder.IntegrationTests**: Integration tests with real database
+- **DnDMapBuilder.ArchitectureTests**: Architectural rule enforcement
+
+### Layered Architecture
+
+```
+Client (Frontend)
+    ↓
+API Layer (Controllers, Routes)
+    ↓
+Application Layer (Services, Business Logic)
+    ↓
+Data Layer (Repositories, EF Core)
+    ↓
+Database (SQL Server)
+```
+
+**Separation of Concerns:**
+- Controllers handle HTTP concerns only
+- Services handle business logic
+- Repositories handle data access
+- Entities are database models (not exposed to clients)
+- DTOs are used for API contracts
 
 ## Prerequisites
 
-- .NET 9.0 SDK
-- Docker Desktop (for local development with Aspire)
+- .NET 10.0 SDK
+- Docker Desktop (for containerized deployment and SQL Server)
 - Visual Studio 2022 or Visual Studio Code
-- SQL Server (or use Docker container via Aspire)
+- SQL Server 2022 (local or cloud-based)
+- Git for version control
 
 ## Getting Started
 
@@ -166,7 +192,121 @@ Update in `appsettings.json`:
 
 ### CORS
 
-CORS is configured to allow all origins in development. Update the CORS policy in `Program.cs` for production.
+CORS is configured via `CorsSettings` in `appsettings.json`:
+
+```json
+"CorsSettings": {
+  "AllowedOrigins": [
+    "http://localhost:3000",
+    "https://yourdomain.com"
+  ]
+}
+```
+
+## Security Features
+
+The API includes several security features by default:
+
+### Security Headers
+
+The following security headers are automatically included in all responses:
+- `X-Content-Type-Options: nosniff` - Prevent MIME sniffing
+- `X-Frame-Options: DENY` - Prevent clickjacking
+- `X-XSS-Protection: 1; mode=block` - Enable XSS protection
+- `Strict-Transport-Security: max-age=31536000` - Force HTTPS
+- `Content-Security-Policy: default-src 'self'` - Restrict content to same-origin
+- `Referrer-Policy: strict-origin-when-cross-origin` - Control referrer information
+- `Permissions-Policy: geolocation=(), microphone=(), camera=()` - Disable dangerous APIs
+
+### Rate Limiting
+
+Rate limiting is enabled to prevent abuse:
+- **Anonymous users**: 100 requests per minute (IP-based)
+- **Authenticated users**: 300 requests per minute (User ID-based)
+- **File uploads**: 10 requests per minute
+
+Exceeded rate limits return HTTP 429 (Too Many Requests) with a Retry-After header.
+
+### Request/Response Logging
+
+All HTTP requests and responses are logged with:
+- Request method, path, query string, and user identity
+- Response status code and duration
+- Correlation IDs for request tracing
+- Sensitive headers (Authorization, Cookie) are sanitized in logs
+
+### API Versioning
+
+The API supports versioning via URL path. Current version is **v1.0**.
+
+Routes follow the pattern: `/api/v{version:apiVersion}/[controller]`
+
+Example: `/api/v1.0/auth/login`
+
+## Testing
+
+### Running Tests
+
+Execute all tests:
+```bash
+dotnet test
+```
+
+Run only unit tests:
+```bash
+dotnet test --filter Category=Unit
+```
+
+Run only integration tests (requires database):
+```bash
+dotnet test --filter Category=Integration
+```
+
+Run only architecture tests:
+```bash
+dotnet test --filter Category=Architecture
+```
+
+### Test Coverage
+
+The project includes:
+- **75+ Unit Tests**: Services, repositories, entities, and utilities
+- **8 Architecture Tests**: Enforce layered architecture and design principles
+- **7 Integration Tests**: Database operations and API endpoints (with database)
+
+Target coverage: >80% for core business logic
+
+### Running Tests in CI/CD
+
+Tests are automatically run in the GitHub Actions pipeline on every push to `main` or `develop` branches.
+
+## Monitoring and Logging
+
+### Application Logging
+
+Structured logging is configured with Serilog:
+- **Console**: Real-time log output in development
+- **File**: Rolling file logs (daily rotation, 100MB max size)
+- **Structured JSON**: Machine-readable log format
+
+### Optional: External Monitoring
+
+You can configure optional monitoring integrations by setting secrets in GitHub:
+
+#### Azure Application Insights
+```bash
+APPLICATIONINSIGHTS_CONNECTION_STRING=<your-connection-string>
+```
+
+#### OpenTelemetry (OTEL)
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://your-otel-collector:4317
+```
+
+#### Log Level Configuration
+```bash
+LOG_LEVEL=Information  # Options: Debug, Information, Warning, Error, Critical
+```
 
 ## Docker Support
 
@@ -193,15 +333,37 @@ DnDMapBuilder/
 
 ## Technologies Used
 
-- .NET 9.0
+**Core Framework:**
+- .NET 10.0
 - ASP.NET Core Web API
-- Entity Framework Core 9.0
-- SQL Server 2022
-- JWT Authentication
-- BCrypt.Net for password hashing
-- .NET Aspire for orchestration
-- Swagger/OpenAPI
-- Docker
+- Entity Framework Core 10.0
+- SQL Server 2022 / Azure SQL Edge
+
+**Authentication & Security:**
+- JWT Bearer Token Authentication
+- BCrypt.Net for secure password hashing
+- Security headers middleware
+- CORS policy enforcement
+- Rate limiting
+
+**API Documentation & Testing:**
+- Swagger/OpenAPI with XML documentation
+- xUnit testing framework
+- FluentAssertions for readable test assertions
+- Moq for mocking dependencies
+- AutoFixture for test data generation
+
+**Logging & Observability:**
+- Serilog for structured logging
+- OpenTelemetry for distributed tracing
+- Health checks endpoints
+- Request/response logging middleware
+
+**Infrastructure & Deployment:**
+- Docker containerization
+- GitHub Actions for CI/CD
+- Alpine Linux for minimal image size
+- Non-root container user for security
 
 ## Development
 
@@ -214,6 +376,102 @@ dotnet test
 ### Code Style
 
 The project follows standard C# coding conventions with nullable reference types enabled.
+
+## Continuous Integration & Deployment
+
+### GitHub Actions Pipeline
+
+The project includes automated CI/CD pipeline (`.github/workflows/main.yml`) that:
+
+1. **Build & Test** (on every push)
+   - Restores dependencies
+   - Builds in Release mode
+   - Runs all unit, integration, and architecture tests
+
+2. **Docker Image Build** (on main branch only)
+   - Builds multi-platform Docker image (linux/amd64, linux/arm64)
+   - Pushes to GitHub Container Registry (ghcr.io)
+   - Uses layer caching for faster builds
+
+3. **Deployment** (on main branch only)
+   - Creates Docker network if needed
+   - Runs database migrations
+   - Deploys API container with health checks
+   - Verifies deployment with health endpoints
+   - Cleans up old images
+
+### Required GitHub Secrets
+
+To enable CI/CD deployment, configure these secrets in GitHub repository settings:
+
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `DB_CONNECTION_STRING` | SQL Server connection string | `Server=your-server;Database=dndmapbuilder;User Id=sa;Password=***;` |
+| `SERVER_HOST` | Deployment server hostname | `api.example.com` |
+| `SERVER_USERNAME` | SSH username for deployment | `deploy` |
+| `SSH_PRIVATE_KEY` | SSH private key for authentication | (SSH RSA private key) |
+| `SERVER_PORT` | SSH port (optional) | `22` |
+
+### Optional Monitoring Secrets
+
+Configure these secrets if using external monitoring services:
+
+| Secret | Description |
+|--------|-------------|
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Azure Application Insights connection string |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry collector endpoint |
+
+### Deployment Flow
+
+```
+Push to main
+    ↓
+Run tests in GitHub
+    ↓
+Build Docker image
+    ↓
+Push to container registry
+    ↓
+SSH to deployment server
+    ↓
+Pull latest image
+    ↓
+Run database migrations
+    ↓
+Start new API container
+    ↓
+Verify health checks
+```
+
+### Local Docker Deployment
+
+To test deployment locally:
+
+```bash
+# Build Docker image
+docker build -t dnd-api:latest -f src/DnDMapBuilder.Api/Dockerfile .
+
+# Create network
+docker network create dnd-network
+
+# Run migrations
+docker run --rm \
+  -e ConnectionStrings__DefaultConnection="<connection-string>" \
+  dnd-api:latest \
+  sh -c "dotnet ef database update --project src/DnDMapBuilder.Data --startup-project src/DnDMapBuilder.Api"
+
+# Start API container
+docker run -d \
+  --name dnd-api \
+  -p 5000:8080 \
+  -e ASPNETCORE_ENVIRONMENT=Production \
+  -e ConnectionStrings__DefaultConnection="<connection-string>" \
+  --network dnd-network \
+  dnd-api:latest
+
+# Check health
+curl http://localhost:5000/health/live
+```
 
 ## License
 

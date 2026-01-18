@@ -17,7 +17,7 @@ namespace DnDMapBuilder.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.0")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -271,7 +271,7 @@ namespace DnDMapBuilder.Data.Migrations
                     b.HasOne("DnDMapBuilder.Data.Entities.User", "Owner")
                         .WithMany("Campaigns")
                         .HasForeignKey("OwnerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Owner");
@@ -299,7 +299,7 @@ namespace DnDMapBuilder.Data.Migrations
                     b.HasOne("DnDMapBuilder.Data.Entities.TokenDefinition", "Token")
                         .WithMany("MapTokenInstances")
                         .HasForeignKey("TokenId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Map");

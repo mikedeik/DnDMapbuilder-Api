@@ -1,47 +1,58 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
+using DnDMapBuilder.Data.Repositories.Interfaces;
+using DnDMapBuilder.Infrastructure.Configuration;
+using DnDMapBuilder.Infrastructure.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Add services to the container
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+// Configure file upload limits
+builder.Services.Configure<FormOptions>(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "DnD Map Builder API", Version = "v1" });
-    
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+});
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+// Configure graceful shutdown
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.ShutdownTimeout = TimeSpan.FromSeconds(30);
+});
+
+// Add services to the container
+var controllerBuilder = builder.Services.AddControllers();
+controllerBuilder.ConfigureCacheProfiles();
+builder.Services.AddEndpointsApiExplorer();
+
+// Response Caching
+builder.Services.AddResponseCachingConfiguration();
+
+// API Versioning
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+})
+.AddMvc()
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new() { Title = "DnD Map Builder API", Version = "v1" });
 });
 
 // Database
@@ -83,14 +94,33 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// CORS
+// Configuration - Use Options pattern
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection(CorsSettings.SectionName));
+
+// Rate Limiting
+builder.Services.AddRateLimitingConfiguration();
+
+// CORS - Use configured origins
+var corsSettings = builder.Configuration.GetSection(CorsSettings.SectionName).Get<CorsSettings>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy(CorsSettings.SectionName, policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (corsSettings?.AllowedOrigins?.Length > 0)
+        {
+            policy.WithOrigins(corsSettings.AllowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // Fallback to AllowAll if no origins configured
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 
@@ -103,11 +133,14 @@ builder.Services.AddScoped<ITokenDefinitionRepository, TokenDefinitionRepository
 builder.Services.AddScoped<IMapTokenInstanceRepository, MapTokenInstanceRepository>();
 
 // Register Services
+builder.Services.AddSingleton<IPasswordService, PasswordService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // File Storage Service
 var baseStoragePath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
@@ -130,10 +163,28 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "DnD Map Builder API v1");
+    });
 }
 
 app.UseHttpsRedirection();
+
+// Add response caching middleware (should be early in pipeline)
+app.UseResponseCachingConfiguration();
+
+// Add cache control headers
+app.UseCacheControlHeaders();
+
+// Add security headers middleware
+app.UseSecurityHeaders();
+
+// Add request/response logging middleware
+app.UseRequestResponseLogging();
+
+// Add rate limiting middleware
+app.UseRateLimitingConfiguration();
 
 // Ensure wwwroot directory exists for static file serving
 var wwwrootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
@@ -147,10 +198,10 @@ if (!Directory.Exists(wwwrootPath))
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootPath),
-    RequestPath = "/api"
+    RequestPath = "/api/v1"
 });
 
-app.UseCors("AllowAll");
+app.UseCors(CorsSettings.SectionName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]  # Full pipeline only on main branch
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop ]  # Build and test only for PRs
   workflow_dispatch: # Allows manual triggering
 
 env:
@@ -112,37 +112,52 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
           # Create Docker network if it doesn't exist
-          sudo docker network create dnd-network 2>/dev/null || true
+          docker network create dnd-network 2>/dev/null || true
 
-          # Pull the latest image
-          sudo docker pull ghcr.io/${IMAGE_NAME}:latest
+          # Pull the latest API image
+          docker pull ghcr.io/${IMAGE_NAME}:latest
 
-          # Stop and remove old container
-          sudo docker stop dnd-api || true
-          sudo docker rm dnd-api || true
+          # Run database migrations before deploying new container
+          echo "Running database migrations..."
+          docker run --rm \
+            -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+            ghcr.io/${IMAGE_NAME}:latest \
+            sh -c "dotnet ef database update --project src/DnDMapBuilder.Data/DnDMapBuilder.Data.csproj --startup-project src/DnDMapBuilder.Api/DnDMapBuilder.Api.csproj --context DnDMapBuilderDbContext || exit 1"
+          echo "Database migrations completed"
+
+          # Stop and remove old API container
+          docker stop dnd-api || true
+          docker rm dnd-api || true
 
           # Create uploads directory on host if it doesn't exist
           mkdir -p ~/dnd-api-uploads
 
-          # Run new container with environment variables
-          sudo docker run -d \
+          # Run new API container with environment variables
+          docker run -d \
             --name dnd-api \
             --restart unless-stopped \
             -p 5000:8080 \
+            -p 5001:8443 \
             -e ASPNETCORE_ENVIRONMENT=Production \
-            -e ASPNETCORE_URLS="http://+:8080" \
+            -e ASPNETCORE_URLS="http://+:8080;https://+:8443" \
             -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
-            -e JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
-            -e JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
-            -e JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
-            -e ADMIN_DEFAULT_PASSWORD="${{ secrets.ADMIN_DEFAULT_PASSWORD }}" \
-            -e ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
             -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
+            --health-cmd="curl -f http://localhost:8080/health/live || exit 1" \
+            --health-interval=30s \
+            --health-timeout=3s \
+            --health-retries=3 \
+            --health-start-period=10s \
             ghcr.io/${IMAGE_NAME}:latest
 
+          # Optional: Configure monitoring and logging (if secrets are provided)
+          # Uncomment and set secrets if using Application Insights or other monitoring
+          # -e APPLICATIONINSIGHTS_CONNECTION_STRING="${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING || '' }}" \
+          # -e OTEL_EXPORTER_OTLP_ENDPOINT="${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT || '' }}" \
+          # -e LOG_LEVEL="${{ secrets.LOG_LEVEL || 'Information' }}" \
+
           # Clean up old images
-          sudo docker image prune -f
+          docker image prune -f
 
     - name: Verify deployment
       uses: appleboy/ssh-action@v1.0.0
@@ -152,8 +167,32 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SERVER_PORT || 22 }}
         script: |
-          # Check if container is running
-          sudo docker ps | grep dnd-api
+          # Wait for API container to be healthy
+          echo "Waiting for API container to be healthy..."
+          for i in {1..30}; do
+            if docker exec dnd-api curl -f http://localhost:8080/health/live > /dev/null 2>&1; then
+              echo "✓ API container is healthy"
+              break
+            fi
+            echo "Attempt $i/30: Waiting for API..."
+            sleep 2
+          done
 
-          # Check container logs
-          sudo docker logs dnd-api --tail 50
+          # Verify container is running
+          echo ""
+          echo "Checking container status..."
+          docker ps --filter "name=dnd-api" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+          # Verify health check endpoints
+          echo ""
+          echo "Testing health check endpoints..."
+          echo "Testing /health/live..."
+          curl -s -f http://localhost:5000/health/live > /dev/null && echo "✓ /health/live - OK" || echo "✗ /health/live - FAILED"
+
+          echo "Testing /health..."
+          curl -s -f http://localhost:5000/health > /dev/null && echo "✓ /health - OK" || echo "✗ /health - FAILED"
+
+          # Show recent logs
+          echo ""
+          echo "Recent API container logs:"
+          docker logs dnd-api --tail 30

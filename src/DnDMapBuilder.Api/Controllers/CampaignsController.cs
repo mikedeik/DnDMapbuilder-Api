@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -8,9 +9,13 @@ using DnDMapBuilder.Contracts.Responses;
 
 namespace DnDMapBuilder.Api.Controllers;
 
+/// <summary>
+/// Controller for managing campaigns.
+/// </summary>
+[ApiVersion("1.0")]
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class CampaignsController : ControllerBase
 {
     private readonly ICampaignService _campaignService;
@@ -23,17 +28,19 @@ public class CampaignsController : ControllerBase
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IEnumerable<CampaignDto>>>> GetUserCampaigns()
+    [ResponseCache(CacheProfileName = "Long300")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CampaignDto>>>> GetUserCampaigns(CancellationToken cancellationToken)
     {
-        var campaigns = await _campaignService.GetUserCampaignsAsync(GetUserId());
+        var campaigns = await _campaignService.GetUserCampaignsAsync(GetUserId(), cancellationToken);
         return Ok(new ApiResponse<IEnumerable<CampaignDto>>(true, campaigns));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<ApiResponse<CampaignDto>>> GetCampaign(string id)
+    [ResponseCache(CacheProfileName = "Long300")]
+    public async Task<ActionResult<ApiResponse<CampaignDto>>> GetCampaign(string id, CancellationToken cancellationToken)
     {
-        var campaign = await _campaignService.GetByIdAsync(id, GetUserId());
-        
+        var campaign = await _campaignService.GetByIdAsync(id, GetUserId(), cancellationToken);
+
         if (campaign == null)
         {
             return NotFound(new ApiResponse<CampaignDto>(false, null, "Campaign not found."));
@@ -43,17 +50,17 @@ public class CampaignsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ApiResponse<CampaignDto>>> CreateCampaign([FromBody] CreateCampaignRequest request)
+    public async Task<ActionResult<ApiResponse<CampaignDto>>> CreateCampaign([FromBody] CreateCampaignRequest request, CancellationToken cancellationToken)
     {
-        var campaign = await _campaignService.CreateAsync(request, GetUserId());
+        var campaign = await _campaignService.CreateAsync(request, GetUserId(), cancellationToken);
         return CreatedAtAction(nameof(GetCampaign), new { id = campaign.Id }, new ApiResponse<CampaignDto>(true, campaign, "Campaign created."));
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ApiResponse<CampaignDto>>> UpdateCampaign(string id, [FromBody] UpdateCampaignRequest request)
+    public async Task<ActionResult<ApiResponse<CampaignDto>>> UpdateCampaign(string id, [FromBody] UpdateCampaignRequest request, CancellationToken cancellationToken)
     {
-        var campaign = await _campaignService.UpdateAsync(id, request, GetUserId());
-        
+        var campaign = await _campaignService.UpdateAsync(id, request, GetUserId(), cancellationToken);
+
         if (campaign == null)
         {
             return NotFound(new ApiResponse<CampaignDto>(false, null, "Campaign not found."));
@@ -63,10 +70,10 @@ public class CampaignsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteCampaign(string id)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteCampaign(string id, CancellationToken cancellationToken)
     {
-        var result = await _campaignService.DeleteAsync(id, GetUserId());
-        
+        var result = await _campaignService.DeleteAsync(id, GetUserId(), cancellationToken);
+
         if (!result)
         {
             return NotFound(new ApiResponse<bool>(false, false, "Campaign not found."));

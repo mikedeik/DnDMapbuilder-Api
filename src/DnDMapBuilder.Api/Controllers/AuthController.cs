@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using DnDMapBuilder.Application.Interfaces;
@@ -7,23 +8,30 @@ using DnDMapBuilder.Contracts.Responses;
 
 namespace DnDMapBuilder.Api.Controllers;
 
+/// <summary>
+/// Controller for authentication operations (login, register).
+/// </summary>
+[ApiVersion("1.0")]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserManagementService _userManagementService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserManagementService userManagementService)
     {
         _authService = authService;
+        _userManagementService = userManagementService;
     }
 
     [HttpPost("register")]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
-        var result = await _authService.RegisterAsync(request);
-        
-        if (result == null)
+        // Create user via user management service
+        var userDto = await _userManagementService.RegisterAsync(request, cancellationToken);
+
+        if (userDto == null)
         {
             return BadRequest(new ApiResponse<AuthResponse>(
                 false,
@@ -32,14 +40,27 @@ public class AuthController : ControllerBase
             ));
         }
 
-        return Ok(new ApiResponse<AuthResponse>(true, result, "Registration successful. Awaiting admin approval."));
+        // Auto-login after successful registration
+        var loginRequest = new LoginRequest(request.Email, request.Password);
+        var authResponse = await _authService.LoginAsync(loginRequest, cancellationToken);
+
+        if (authResponse == null)
+        {
+            return Ok(new ApiResponse<AuthResponse>(
+                true,
+                null,
+                "Registration successful. Awaiting admin approval."
+            ));
+        }
+
+        return Ok(new ApiResponse<AuthResponse>(true, authResponse, "Registration successful. Token generated."));
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
-        var result = await _authService.LoginAsync(request);
-        
+        var result = await _authService.LoginAsync(request, cancellationToken);
+
         if (result == null)
         {
             return Unauthorized(new ApiResponse<AuthResponse>(
@@ -54,18 +75,19 @@ public class AuthController : ControllerBase
 
     [Authorize(Roles = "admin")]
     [HttpGet("pending-users")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers()
+    [ResponseCache(CacheProfileName = "Short10")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetPendingUsers(CancellationToken cancellationToken)
     {
-        var users = await _authService.GetPendingUsersAsync();
+        var users = await _userManagementService.GetPendingUsersAsync(cancellationToken);
         return Ok(new ApiResponse<IEnumerable<UserDto>>(true, users));
     }
 
     [Authorize(Roles = "admin")]
     [HttpPost("approve-user")]
-    public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request)
+    public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request, CancellationToken cancellationToken)
     {
-        var result = await _authService.ApproveUserAsync(request.UserId, request.Approved);
-        
+        var result = await _userManagementService.ApproveUserAsync(request.UserId, request.Approved, cancellationToken);
+
         if (!result)
         {
             return NotFound(new ApiResponse<bool>(false, false, "User not found."));

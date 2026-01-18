@@ -38,7 +38,7 @@ public static class DbInitializer
             context.Users.Add(admin);
             await context.SaveChangesAsync();
 
-            Console.WriteLine($"✓ Admin user created: {adminEmail}");
+            Console.WriteLine($"Admin user created: {adminEmail}");
         }
         else
         {
@@ -48,7 +48,7 @@ public static class DbInitializer
 
             await context.SaveChangesAsync();
 
-            Console.WriteLine($"✓ Admin user password updated: {adminEmail}");
+            Console.WriteLine($"Admin user password updated: {adminEmail}");
         }
     }
 }

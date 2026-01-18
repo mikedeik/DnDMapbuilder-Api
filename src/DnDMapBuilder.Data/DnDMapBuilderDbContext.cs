@@ -17,6 +17,17 @@ public class DnDMapBuilderDbContext : DbContext
     public DbSet<TokenDefinition> TokenDefinitions { get; set; } = null!;
     public DbSet<MapTokenInstance> MapTokenInstances { get; set; } = null!;
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+
+        // Detailed debugging for Development only
+#if DEBUG
+        optionsBuilder.EnableSensitiveDataLogging();
+        optionsBuilder.EnableDetailedErrors();
+#endif
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -40,11 +51,12 @@ public class DnDMapBuilderDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Description).HasMaxLength(2000);
-            
+
+            // When User deleted -> Restrict (don't cascade delete campaigns)
             entity.HasOne(e => e.Owner)
                 .WithMany(u => u.Campaigns)
                 .HasForeignKey(e => e.OwnerId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Mission configuration
@@ -53,7 +65,8 @@ public class DnDMapBuilderDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Description).HasMaxLength(2000);
-            
+
+            // When Campaign deleted -> delete all Missions
             entity.HasOne(e => e.Campaign)
                 .WithMany(c => c.Missions)
                 .HasForeignKey(e => e.CampaignId)
@@ -67,7 +80,8 @@ public class DnDMapBuilderDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.ImageUrl).HasMaxLength(1000);
             entity.Property(e => e.GridColor).IsRequired().HasMaxLength(20);
-            
+
+            // When Mission deleted -> delete all GameMaps
             entity.HasOne(e => e.Mission)
                 .WithMany(m => m.Maps)
                 .HasForeignKey(e => e.MissionId)
@@ -81,7 +95,8 @@ public class DnDMapBuilderDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.ImageUrl).IsRequired().HasMaxLength(1000);
             entity.Property(e => e.Type).IsRequired().HasMaxLength(50);
-            
+
+            // When User deleted -> delete all TokenDefinitions
             entity.HasOne(e => e.User)
                 .WithMany(u => u.TokenDefinitions)
                 .HasForeignKey(e => e.UserId)
@@ -92,12 +107,14 @@ public class DnDMapBuilderDbContext : DbContext
         modelBuilder.Entity<MapTokenInstance>(entity =>
         {
             entity.HasKey(e => e.Id);
-            
+
+            // When TokenDefinition deleted -> delete all MapTokenInstances
             entity.HasOne(e => e.Token)
                 .WithMany(t => t.MapTokenInstances)
                 .HasForeignKey(e => e.TokenId)
-                .OnDelete(DeleteBehavior.Restrict);
-            
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // When GameMap deleted -> delete all MapTokenInstances
             entity.HasOne(e => e.Map)
                 .WithMany(m => m.Tokens)
                 .HasForeignKey(e => e.MapId)
