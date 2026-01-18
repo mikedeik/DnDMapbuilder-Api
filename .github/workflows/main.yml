@@ -100,13 +100,19 @@ jobs:
     - name: Deploy to server via SSH
       env:
         IMAGE_NAME: ${{ needs.build-docker.outputs.image-name }}
+        DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+        JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SERVER_PORT || 22 }}
-        envs: IMAGE_NAME
+        envs: IMAGE_NAME,DB_CONNECTION_STRING,ADMIN_EMAIL,ADMIN_DEFAULT_PASSWORD,JWT_SECRET,JWT_ISSUER,JWT_AUDIENCE
         script: |
           # Login to GitHub Container Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -120,7 +126,12 @@ jobs:
           # Run database migrations before deploying new container
           echo "Running database migrations..."
           docker run --rm \
-            -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+            -e ConnectionStrings__DefaultConnection="${DB_CONNECTION_STRING}" \
+            -e ADMIN_EMAIL="${ADMIN_EMAIL}" \
+            -e ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD}" \
+            -e JWT_SECRET="${JWT_SECRET}" \
+            -e JWT_ISSUER="${JWT_ISSUER}" \
+            -e JWT_AUDIENCE="${JWT_AUDIENCE}" \
             -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
             --network dnd-network \
             ghcr.io/${IMAGE_NAME}:latest \
@@ -142,7 +153,12 @@ jobs:
             -p 5001:8443 \
             -e ASPNETCORE_ENVIRONMENT=Production \
             -e ASPNETCORE_URLS="http://+:8080;https://+:8443" \
-            -e ConnectionStrings__DefaultConnection="${{ secrets.DB_CONNECTION_STRING }}" \
+            -e ConnectionStrings__DefaultConnection="${DB_CONNECTION_STRING}" \
+            -e ADMIN_EMAIL="${ADMIN_EMAIL}" \
+            -e ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD}" \
+            -e JwtSettings__Secret="${JWT_SECRET}" \
+            -e JwtSettings__Issuer="${JWT_ISSUER}" \
+            -e JwtSettings__Audience="${JWT_AUDIENCE}" \
             -e DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
             -v ~/dnd-api-uploads:/app/wwwroot/uploads \
             --network dnd-network \
