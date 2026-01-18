@@ -23,4 +23,9 @@
     </PackageReference>
   </ItemGroup>
 
+  <!-- Prevent MSB3552 error by explicitly excluding .resx files -->
+  <ItemGroup>
+    <EmbeddedResource Remove="**/*.resx" />
+  </ItemGroup>
+
 </Project>
