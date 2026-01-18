@@ -198,7 +198,7 @@ if (!Directory.Exists(wwwrootPath))
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootPath),
-    RequestPath = "/api"
+    RequestPath = "/api/v1"
 });
 
 app.UseCors(CorsSettings.SectionName);

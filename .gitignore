@@ -101,3 +101,4 @@ src/DnDMapBuilder.Api/wwwroot/uploads/
 global.json
 DnDMapBuilder.sln.DotSettings.user
 BACKEND_ENHANCEMENT_PROMPT_PLAN.md
+backend-repomix-output.xml
