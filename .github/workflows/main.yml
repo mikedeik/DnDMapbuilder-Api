@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]  # Full pipeline only on main branch
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop ]  # Build and test only for PRs
   workflow_dispatch: # Allows manual triggering
 
 env:
