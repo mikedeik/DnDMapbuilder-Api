@@ -145,8 +145,7 @@ public class GenericRepositoryTests
         Assert.NotNull(updatedUser);
         Assert.Equal("updatedname", updatedUser.Username);
     }
-
-    [Fact(Skip = "Pre-existing issue with in-memory database tracking - requires refactoring")]
+    [Fact]
     public async Task DeleteAsync_ShouldDeleteEntity_WhenCalledWithValidId()
     {
         // Arrange

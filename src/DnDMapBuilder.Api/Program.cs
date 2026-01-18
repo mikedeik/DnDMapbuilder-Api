@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using DnDMapBuilder.Application.Interfaces;
@@ -13,6 +14,12 @@ using DnDMapBuilder.Infrastructure.Middleware;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+// Configure file upload limits
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+});
 
 // Add services to the container
 var controllerBuilder = builder.Services.AddControllers();
@@ -126,6 +133,7 @@ builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
+builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
 // File Storage Service
 var baseStoragePath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
