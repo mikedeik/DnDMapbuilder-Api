@@ -51,18 +51,16 @@ RUN mkdir -p /app/wwwroot/uploads && \
 # Switch to non-root user
 USER dotnetuser
 
-# Expose ports
+# Expose HTTP port only (nginx handles SSL termination)
 EXPOSE 8080
-EXPOSE 8443
 
 # Health check configuration
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health/live || exit 1
 
-# Set environment for .NET to use the non-root user
+# Set environment for .NET
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_HTTP_PORT=8080
-ENV ASPNETCORE_HTTPS_PORT=8443
 # Enable globalization for SQL Server compatibility
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
