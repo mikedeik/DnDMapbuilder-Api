@@ -56,7 +56,7 @@ public class MigrationRunner
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error occurred during database migration");
+            _logger.LogError(ex, "Error occurred during database migration");
             return false;
         }
     }
@@ -95,7 +95,7 @@ public class MigrationRunner
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error occurred during database migration");
+            _logger.LogError(ex, "Error occurred during database migration");
             return false;
         }
     }
