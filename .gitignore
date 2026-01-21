@@ -19,6 +19,28 @@ src/**/obj/
 src/**/Debug/
 src/**/Release/
 
+# Individual project build directories
+src/DnDMapBuilder.Api/bin/
+src/DnDMapBuilder.Api/obj/
+src/DnDMapBuilder.Application/bin/
+src/DnDMapBuilder.Application/obj/
+src/DnDMapBuilder.Data/bin/
+src/DnDMapBuilder.Data/obj/
+src/DnDMapBuilder.Contracts/bin/
+src/DnDMapBuilder.Contracts/obj/
+src/DnDMapBuilder.Infrastructure/bin/
+src/DnDMapBuilder.Infrastructure/obj/
+src/DnDMapBuilder.Aspire.ServiceDefaults/bin/
+src/DnDMapBuilder.Aspire.ServiceDefaults/obj/
+src/DnDMapBuilder.AppHost/bin/
+src/DnDMapBuilder.AppHost/obj/
+src/DnDMapBuilder.UnitTests/bin/
+src/DnDMapBuilder.UnitTests/obj/
+src/DnDMapBuilder.IntegrationTests/bin/
+src/DnDMapBuilder.IntegrationTests/obj/
+src/DnDMapBuilder.ArchitectureTests/bin/
+src/DnDMapBuilder.ArchitectureTests/obj/
+
 # Visual Studio and Rider cache and settings
 .vs/
 .vscode/
