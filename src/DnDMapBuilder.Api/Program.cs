@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
+using DnDMapBuilder.Contracts.Configuration;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;
@@ -97,6 +98,7 @@ builder.Services.AddAuthorization();
 // Configuration - Use Options pattern
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection(CorsSettings.SectionName));
+builder.Services.Configure<OAuthSettings>(builder.Configuration.GetSection("OAuth"));
 
 // Rate Limiting
 builder.Services.AddRateLimitingConfiguration();
@@ -141,6 +143,11 @@ builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
+
+// OAuth Services
+builder.Services.AddHttpClient<GoogleOAuthService>();
+builder.Services.AddHttpClient<AppleOAuthService>();
+builder.Services.AddScoped<IOAuthService, OAuthService>();
 
 // File Storage Service
 var baseStoragePath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");

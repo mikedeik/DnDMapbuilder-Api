@@ -39,4 +39,10 @@ public class UserRepository : GenericRepository<User>, IUserRepository
     {
         return await _dbSet.AsNoTracking().Where(u => u.Role == role).ToListAsync(cancellationToken);
     }
+
+    public async Task<User?> GetByOAuthProviderAsync(string provider, string providerId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.OAuthProvider == provider && u.OAuthProviderId == providerId, cancellationToken);
+    }
 }

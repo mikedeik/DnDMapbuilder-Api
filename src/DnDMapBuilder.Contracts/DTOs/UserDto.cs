@@ -8,5 +8,8 @@ public record UserDto(
     string Username,
     string Email,
     string Role,
-    string Status
+    string Status,
+    string? OAuthProvider = null,
+    string? ProfilePictureUrl = null,
+    bool EmailVerified = false
 );

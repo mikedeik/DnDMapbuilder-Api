@@ -12,7 +12,10 @@ public static class MappingExtensions
             user.Username,
             user.Email,
             user.Role,
-            user.Status
+            user.Status,
+            user.OAuthProvider,
+            user.ProfilePictureUrl,
+            user.EmailVerified
         );
     }
 

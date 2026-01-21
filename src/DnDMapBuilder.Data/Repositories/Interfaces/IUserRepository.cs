@@ -44,4 +44,14 @@ public interface IUserRepository : IGenericRepository<User>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>All users with the specified role</returns>
     Task<IEnumerable<User>> GetUsersByRoleAsync(string role, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a user by OAuth provider and provider-specific ID.
+    /// </summary>
+    /// <param name="provider">OAuth provider name (google, apple)</param>
+    /// <param name="providerId">Provider-specific user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The user or null if not found</returns>
+    Task<User?> GetByOAuthProviderAsync(string provider, string providerId, CancellationToken cancellationToken = default);
 }
+

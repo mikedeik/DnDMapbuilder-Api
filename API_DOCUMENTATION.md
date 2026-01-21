@@ -530,3 +530,134 @@ CORS is configured to allow all origins in development. Update CORS policy for p
 Current API version: v1
 
 Future versions will be accessible via `/api/v2/...`
+
+---
+
+## OAuth Authentication
+
+The API supports OAuth authentication through Google and Apple Sign-In providers. This allows users to authenticate without creating a password.
+
+### OAuth Flows Supported
+
+1. **Authorization Code Flow**: For web applications
+2. **ID Token Validation**: For mobile and single-page applications (SPAs)
+
+### Get OAuth Authorization URL
+
+**Endpoint**: `GET /api/v1/auth/oauth/{provider}/url`
+
+**Parameters**:
+- `provider` (path): OAuth provider ("google" or "apple")
+- `redirectUri` (query, optional): Custom redirect URI (defaults to configured backend redirect URI)
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
+    "state": "random-state-string"
+  },
+  "message": "google authorization URL generated."
+}
+```
+
+### OAuth Callback (Authorization Code Flow)
+
+**Endpoint**: `POST /api/v1/auth/oauth/callback`
+
+**Body**:
+```json
+{
+  "provider": "google",
+  "code": "authorization-code-from-provider",
+  "redirectUri": "https://your-app.com/callback"
+}
+```
+
+**Response**: Same as login endpoint (returns user info and JWT token)
+
+**Example Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "id": "user-id",
+    "username": "john_doe",
+    "email": "john@example.com",
+    "role": "user",
+    "status": "approved"
+  },
+  "message": "OAuth login successful."
+}
+```
+
+### OAuth Token Validation (For Mobile/SPA)
+
+**Endpoint**: `POST /api/v1/auth/oauth/token`
+
+**Body**:
+```json
+{
+  "provider": "google",
+  "idToken": "id-token-from-google-sdk"
+}
+```
+
+**Response**: Same as OAuth callback (returns user info and JWT token)
+
+### OAuth Provider Configuration
+
+#### Google OAuth
+
+To use Google OAuth, you need to:
+1. Create a Google Cloud project
+2. Create OAuth 2.0 credentials (Web application type)
+3. Add redirect URIs to your project
+4. Configure credentials in `appsettings.json`:
+```json
+{
+  "OAuth": {
+    "Google": {
+      "ClientId": "your-client-id.apps.googleusercontent.com",
+      "ClientSecret": "your-client-secret"
+    }
+  }
+}
+```
+
+#### Apple OAuth
+
+To use Apple Sign-In, you need to:
+1. Enroll in Apple Developer Program
+2. Create App IDs and sign certificates
+3. Create a private key for server-to-server communication
+4. Configure credentials in `appsettings.json`:
+```json
+{
+  "OAuth": {
+    "Apple": {
+      "ClientId": "com.yourcompany.appid",
+      "TeamId": "your-team-id",
+      "KeyId": "your-key-id",
+      "PrivateKey": "your-private-key-in-base64"
+    }
+  }
+}
+```
+
+### OAuth User Management
+
+- When a user authenticates via OAuth for the first time, a new account is automatically created
+- The account is automatically approved (no admin approval needed)
+- If an email already exists, the OAuth provider is linked to the existing account
+- User profile pictures from OAuth providers are stored and returned in the API
+
+### JWT Token Usage
+
+After OAuth authentication, the API returns a JWT token in the response. Use this token in subsequent requests:
+
+```bash
+curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:5000/api/v1/campaigns
+```
