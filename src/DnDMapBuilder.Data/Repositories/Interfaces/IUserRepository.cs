@@ -31,6 +31,13 @@ public interface IUserRepository : IGenericRepository<User>
     Task<IEnumerable<User>> GetPendingUsersAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets all users with approved status.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>All approved users</returns>
+    Task<IEnumerable<User>> GetActiveUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets all users with a specific role.
     /// </summary>
     /// <param name="role">The role name</param>

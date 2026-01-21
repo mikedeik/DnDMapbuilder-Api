@@ -30,6 +30,11 @@ public class UserRepository : GenericRepository<User>, IUserRepository
         return await _dbSet.AsNoTracking().Where(u => u.Status == "pending").ToListAsync(cancellationToken);
     }
 
+    public async Task<IEnumerable<User>> GetActiveUsersAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AsNoTracking().Where(u => u.Status == "approved").ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<User>> GetUsersByRoleAsync(string role, CancellationToken cancellationToken = default)
     {
         return await _dbSet.AsNoTracking().Where(u => u.Role == role).ToListAsync(cancellationToken);

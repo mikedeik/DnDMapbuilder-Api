@@ -93,4 +93,33 @@ public class UserManagementService : IUserManagementService
         var users = await _userRepository.GetPendingUsersAsync(cancellationToken);
         return users.Select(u => u.ToDto());
     }
+
+    /// <summary>
+    /// Gets all users with approved (active) status.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Collection of active users</returns>
+    public async Task<IEnumerable<UserDto>> GetActiveUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = await _userRepository.GetActiveUsersAsync(cancellationToken);
+        return users.Select(u => u.ToDto());
+    }
+
+    /// <summary>
+    /// Deletes a user by their ID.
+    /// </summary>
+    /// <param name="userId">The user ID to delete</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if deletion succeeded, false otherwise</returns>
+    public async Task<bool> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return false;
+        }
+
+        await _userRepository.DeleteAsync(userId, cancellationToken);
+        return true;
+    }
 }

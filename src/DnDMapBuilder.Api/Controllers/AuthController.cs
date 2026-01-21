@@ -83,6 +83,15 @@ public class AuthController : ControllerBase
     }
 
     [Authorize(Roles = "admin")]
+    [HttpGet("active-users")]
+    [ResponseCache(CacheProfileName = "Short10")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserDto>>>> GetActiveUsers(CancellationToken cancellationToken)
+    {
+        var users = await _userManagementService.GetActiveUsersAsync(cancellationToken);
+        return Ok(new ApiResponse<IEnumerable<UserDto>>(true, users));
+    }
+
+    [Authorize(Roles = "admin")]
     [HttpPost("approve-user")]
     public async Task<ActionResult<ApiResponse<bool>>> ApproveUser([FromBody] ApproveUserRequest request, CancellationToken cancellationToken)
     {
@@ -94,5 +103,19 @@ public class AuthController : ControllerBase
         }
 
         return Ok(new ApiResponse<bool>(true, true, "User status updated."));
+    }
+
+    [Authorize(Roles = "admin")]
+    [HttpDelete("delete-user/{userId}")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteUser(string userId, CancellationToken cancellationToken)
+    {
+        var result = await _userManagementService.DeleteUserAsync(userId, cancellationToken);
+
+        if (!result)
+        {
+            return NotFound(new ApiResponse<bool>(false, false, "User not found."));
+        }
+
+        return Ok(new ApiResponse<bool>(true, true, "User deleted successfully."));
     }
 }
