@@ -4,11 +4,19 @@ namespace DnDMapBuilder.UnitTests.Services;
 
 public class OAuthServiceTests
 {
+    // These tests are integration tests that require mocking of HTTP clients
+    // and OAuth provider responses. For unit testing, the OAuth service is best
+    // tested through its orchestration layer via the GoogleOAuthService and 
+    // AppleOAuthService tests, and the AuthController tests that verify the
+    // integration with the service layer.
+    
     [Fact]
-    public void OAuthService_ShouldBeStructuredCorrectly()
+    public void OAuthService_IsProperlyStructured()
     {
-        // This test verifies that the OAuthService is properly structured
-        // Full integration tests should be performed with actual OAuth providers
-        Assert.NotNull(typeof(DnDMapBuilder.Application.Services.OAuthService));
+        // Placeholder test to indicate OAuth service tests are present
+        // See GoogleOAuthServiceTests, AppleOAuthServiceTests, and AuthControllerOAuthTests
+        // for comprehensive OAuth testing
+        var serviceType = typeof(DnDMapBuilder.Application.Services.OAuthService);
+        Assert.NotNull(serviceType);
     }
 }
