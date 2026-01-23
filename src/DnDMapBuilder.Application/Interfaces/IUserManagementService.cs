@@ -31,4 +31,19 @@ public interface IUserManagementService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of pending users</returns>
     Task<IEnumerable<UserDto>> GetPendingUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all users with approved (active) status.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Collection of active users</returns>
+    Task<IEnumerable<UserDto>> GetActiveUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a user by their ID.
+    /// </summary>
+    /// <param name="userId">The user ID to delete</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if deletion succeeded, false otherwise</returns>
+    Task<bool> DeleteUserAsync(string userId, CancellationToken cancellationToken = default);
 }

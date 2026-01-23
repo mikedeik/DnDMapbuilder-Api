@@ -1,8 +1,8 @@
-# Build results
-bin/
-obj/
-Debug/
-Release/
+# Build results (case-insensitive for cross-platform compatibility)
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
 x64/
 x86/
 *.o
@@ -13,11 +13,33 @@ x86/
 *.pdb
 *.mdb
 
-# All project build directories
-src/**/bin/
-src/**/obj/
-src/**/Debug/
-src/**/Release/
+# All project build directories (case-insensitive)
+src/**/[Bb]in/
+src/**/[Oo]bj/
+src/**/[Dd]ebug/
+src/**/[Rr]elease/
+
+# Individual project build directories (case-insensitive)
+src/DnDMapBuilder.Api/[Bb]in/
+src/DnDMapBuilder.Api/[Oo]bj/
+src/DnDMapBuilder.Application/[Bb]in/
+src/DnDMapBuilder.Application/[Oo]bj/
+src/DnDMapBuilder.Data/[Bb]in/
+src/DnDMapBuilder.Data/[Oo]bj/
+src/DnDMapBuilder.Contracts/[Bb]in/
+src/DnDMapBuilder.Contracts/[Oo]bj/
+src/DnDMapBuilder.Infrastructure/[Bb]in/
+src/DnDMapBuilder.Infrastructure/[Oo]bj/
+src/DnDMapBuilder.Aspire.ServiceDefaults/[Bb]in/
+src/DnDMapBuilder.Aspire.ServiceDefaults/[Oo]bj/
+src/DnDMapBuilder.AppHost/[Bb]in/
+src/DnDMapBuilder.AppHost/[Oo]bj/
+src/DnDMapBuilder.UnitTests/[Bb]in/
+src/DnDMapBuilder.UnitTests/[Oo]bj/
+src/DnDMapBuilder.IntegrationTests/[Bb]in/
+src/DnDMapBuilder.IntegrationTests/[Oo]bj/
+src/DnDMapBuilder.ArchitectureTests/[Bb]in/
+src/DnDMapBuilder.ArchitectureTests/[Oo]bj/
 
 # Visual Studio and Rider cache and settings
 .vs/

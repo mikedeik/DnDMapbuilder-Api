@@ -31,10 +31,27 @@ public interface IUserRepository : IGenericRepository<User>
     Task<IEnumerable<User>> GetPendingUsersAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets all users with approved status.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>All approved users</returns>
+    Task<IEnumerable<User>> GetActiveUsersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets all users with a specific role.
     /// </summary>
     /// <param name="role">The role name</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>All users with the specified role</returns>
     Task<IEnumerable<User>> GetUsersByRoleAsync(string role, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a user by OAuth provider and provider-specific ID.
+    /// </summary>
+    /// <param name="provider">OAuth provider name (google, apple)</param>
+    /// <param name="providerId">Provider-specific user ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The user or null if not found</returns>
+    Task<User?> GetByOAuthProviderAsync(string provider, string providerId, CancellationToken cancellationToken = default);
 }
+
