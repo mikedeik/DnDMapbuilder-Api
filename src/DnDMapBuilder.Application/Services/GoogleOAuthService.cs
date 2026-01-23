@@ -140,6 +140,7 @@ public class GoogleTokenInfo
     public string Email { get; set; } = string.Empty;
 
     [System.Text.Json.Serialization.JsonPropertyName("email_verified")]
+    [System.Text.Json.Serialization.JsonConverter(typeof(StringBooleanConverter))]
     public bool EmailVerified { get; set; }
 
     [System.Text.Json.Serialization.JsonPropertyName("name")]
@@ -161,6 +162,7 @@ public class GoogleUserInfo
     public string Email { get; set; } = string.Empty;
 
     [System.Text.Json.Serialization.JsonPropertyName("email_verified")]
+    [System.Text.Json.Serialization.JsonConverter(typeof(StringBooleanConverter))]
     public bool EmailVerified { get; set; }
 
     [System.Text.Json.Serialization.JsonPropertyName("name")]
@@ -168,4 +170,31 @@ public class GoogleUserInfo
 
     [System.Text.Json.Serialization.JsonPropertyName("picture")]
     public string? Picture { get; set; }
+}
+
+/// <summary>
+/// Custom JSON converter to handle Google's string boolean values ("true"/"false")
+/// </summary>
+public class StringBooleanConverter : System.Text.Json.Serialization.JsonConverter<bool>
+{
+    public override bool Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == System.Text.Json.JsonTokenType.True || reader.TokenType == System.Text.Json.JsonTokenType.False)
+        {
+            return reader.GetBoolean();
+        }
+
+        if (reader.TokenType == System.Text.Json.JsonTokenType.String)
+        {
+            var stringValue = reader.GetString();
+            return stringValue?.ToLowerInvariant() == "true";
+        }
+
+        throw new JsonException($"Unable to convert '{reader.GetString()}' to boolean");
+    }
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
+    {
+        writer.WriteBooleanValue(value);
+    }
 }
