@@ -33,7 +33,7 @@ public class MissionsController : ControllerBase
     /// <param name="id">The mission ID</param>
     /// <returns>The mission details or 404 if not found</returns>
     [HttpGet("{id}")]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<MissionDto>>> GetMission(string id, CancellationToken cancellationToken)
     {
         var mission = await _missionService.GetByIdAsync(id, GetUserId(), cancellationToken);
@@ -53,7 +53,7 @@ public class MissionsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of missions in the campaign</returns>
     [HttpGet("campaign/{campaignId}")]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<IEnumerable<MissionDto>>>> GetMissionsByCampaign(string campaignId, CancellationToken cancellationToken)
     {
         var missions = await _missionService.GetByCampaignIdAsync(campaignId, GetUserId(), cancellationToken);

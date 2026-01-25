@@ -36,7 +36,7 @@ public class GameMapsController : ControllerBase
     /// <param name="id">The game map ID</param>
     /// <returns>The game map details or 404 if not found</returns>
     [HttpGet("{id}")]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "NoCache")]
     public async Task<ActionResult<ApiResponse<GameMapDto>>> GetMap(string id, CancellationToken cancellationToken)
     {
         var map = await _mapService.GetByIdAsync(id, GetUserId(), cancellationToken);
@@ -56,7 +56,7 @@ public class GameMapsController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of game maps in the mission</returns>
     [HttpGet("mission/{missionId}")]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<IEnumerable<GameMapDto>>>> GetMapsByMission(string missionId, CancellationToken cancellationToken)
     {
         var maps = await _mapService.GetByMissionIdAsync(missionId, GetUserId(), cancellationToken);
