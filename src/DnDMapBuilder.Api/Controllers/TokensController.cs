@@ -36,7 +36,7 @@ public class TokensController : ControllerBase
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of user's token definitions</returns>
     [HttpGet]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<IEnumerable<TokenDefinitionDto>>>> GetUserTokens(CancellationToken cancellationToken)
     {
         var tokens = await _tokenService.GetUserTokensAsync(GetUserId(), cancellationToken);

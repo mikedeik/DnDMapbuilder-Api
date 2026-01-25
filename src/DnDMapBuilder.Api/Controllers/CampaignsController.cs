@@ -28,7 +28,7 @@ public class CampaignsController : ControllerBase
     private string GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
 
     [HttpGet]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<IEnumerable<CampaignDto>>>> GetUserCampaigns(CancellationToken cancellationToken)
     {
         var campaigns = await _campaignService.GetUserCampaignsAsync(GetUserId(), cancellationToken);
@@ -36,7 +36,7 @@ public class CampaignsController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [ResponseCache(CacheProfileName = "Long300")]
+    [ResponseCache(CacheProfileName = "Default60")]
     public async Task<ActionResult<ApiResponse<CampaignDto>>> GetCampaign(string id, CancellationToken cancellationToken)
     {
         var campaign = await _campaignService.GetByIdAsync(id, GetUserId(), cancellationToken);
