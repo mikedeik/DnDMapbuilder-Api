@@ -1,5 +1,6 @@
 using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Data.Entities;
+using PublicationStatus = DnDMapBuilder.Contracts.DTOs.PublicationStatus;
 
 namespace DnDMapBuilder.Application.Mappings;
 
@@ -56,6 +57,7 @@ public static class MappingExtensions
             map.GridColor,
             map.GridOpacity,
             map.MissionId,
+            (PublicationStatus)(int)map.PublicationStatus,
             map.ImageFileId,
             map.ImageContentType,
             map.ImageFileSize

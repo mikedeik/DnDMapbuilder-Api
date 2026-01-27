@@ -15,6 +15,7 @@ public class GameMap
     public int Cols { get; set; }
     public string GridColor { get; set; } = "#000000";
     public double GridOpacity { get; set; } = 0.3;
+    public PublicationStatus PublicationStatus { get; set; } = PublicationStatus.Draft;
     public string MissionId { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

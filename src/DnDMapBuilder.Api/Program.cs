@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using DnDMapBuilder.Api.Hubs;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Contracts.Configuration;
@@ -33,6 +34,9 @@ builder.Services.Configure<HostOptions>(options =>
 var controllerBuilder = builder.Services.AddControllers();
 controllerBuilder.ConfigureCacheProfiles();
 builder.Services.AddEndpointsApiExplorer();
+
+// Add SignalR
+builder.Services.AddSignalR();
 
 // Response Caching
 builder.Services.AddResponseCachingConfiguration();
@@ -91,6 +95,21 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+
+    // Configure JWT for SignalR - extract token from query string
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -141,6 +160,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();
 builder.Services.AddScoped<IMissionService, MissionService>();
 builder.Services.AddScoped<IGameMapService, GameMapService>();
+builder.Services.AddScoped<IGameMapHub, GameMapHubAdapter>();
+builder.Services.AddScoped<ILiveMapService, LiveMapService>();
 builder.Services.AddScoped<ITokenDefinitionService, TokenDefinitionService>();
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
@@ -214,5 +235,8 @@ app.UseCors(CorsSettings.SectionName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Map SignalR hubs
+app.MapHub<GameMapHub>("/hubs/gamemap");
 
 app.Run();
