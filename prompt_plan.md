@@ -384,8 +384,9 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 8: Add Live View Endpoint for Frontend Display
 - **uniqueId**: `step-live-map-008`
-- **status**: `pending`
+- **status**: `skipped`
 - **description**: Create a dedicated MVC endpoint `/gamemaps/{mapId}/live` that serves an HTML page for the live display view. This page authenticates using the DM's token from browser storage and connects to SignalR.
+- **skip_reason**: This project does not display UI in the backend - frontend implementation is out of scope
 - **TDD Approach**:
   - **Test Cases**:
     - Integration test: `GET /gamemaps/{mapId}/live` returns 200 with HTML content
