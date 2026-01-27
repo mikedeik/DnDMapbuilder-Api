@@ -41,9 +41,9 @@ public class LiveMapServiceTests
         _service = new LiveMapService(
             _mockMapRepository.Object,
             _mockHubContext.Object,
-            _mockGameMapService.Object,
             _mockLogger.Object,
-            _mockConfiguration.Object);
+            _mockConfiguration.Object,
+            _mockGameMapService.Object);
     }
 
     private GameMap CreateLiveMap(string id = "map1", string name = "Test Map")
@@ -429,9 +429,9 @@ public class LiveMapServiceTests
         var serviceWithShortThrottle = new LiveMapService(
             _mockMapRepository.Object,
             _mockHubContext.Object,
-            _mockGameMapService.Object,
             _mockLogger.Object,
-            _mockConfiguration.Object);
+            _mockConfiguration.Object,
+            _mockGameMapService.Object);
 
         // Act - First broadcast
         await serviceWithShortThrottle.BroadcastTokenMovedAsync("map1", "token1", 0, 0);

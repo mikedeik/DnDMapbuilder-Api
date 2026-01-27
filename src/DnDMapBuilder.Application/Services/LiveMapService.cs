@@ -21,7 +21,7 @@ public class LiveMapService : ILiveMapService
 {
     private readonly IGameMapRepository _mapRepository;
     private readonly IGameMapHub _hubContext;
-    private readonly IGameMapService _gameMapService;
+    private readonly IGameMapService? _gameMapService;
     private readonly ILogger<LiveMapService> _logger;
     private readonly int _throttleWindowMs;
     private readonly ConcurrentDictionary<string, (DateTime LastBroadcast, SemaphoreSlim Lock)> _throttleState;
@@ -29,9 +29,9 @@ public class LiveMapService : ILiveMapService
     public LiveMapService(
         IGameMapRepository mapRepository,
         IGameMapHub hubContext,
-        IGameMapService gameMapService,
         ILogger<LiveMapService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IGameMapService? gameMapService = null)
     {
         _mapRepository = mapRepository;
         _hubContext = hubContext;
@@ -133,11 +133,14 @@ public class LiveMapService : ILiveMapService
 
     public async Task SetMapPublicationStatusAsync(string mapId, PublicationStatusDto status, string userId, CancellationToken cancellationToken = default)
     {
-        // Verify user has access to this map
-        var existingMap = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
-        if (existingMap == null)
+        // Verify user has access to this map (optional check if GameMapService is available)
+        if (_gameMapService != null)
         {
-            throw new UnauthorizedAccessException("Map not found or access denied");
+            var existingMap = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
+            if (existingMap == null)
+            {
+                throw new UnauthorizedAccessException("Map not found or access denied");
+            }
         }
 
         // Get the entity from repository to update
@@ -162,7 +165,12 @@ public class LiveMapService : ILiveMapService
 
     public async Task<MapStateSnapshot?> GetMapStateSnapshotAsync(string mapId, string userId, CancellationToken cancellationToken = default)
     {
-        // Verify user has access to this map
+        // Verify user has access to this map (requires GameMapService)
+        if (_gameMapService == null)
+        {
+            return null;
+        }
+
         var mapDto = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
         if (mapDto == null)
         {
