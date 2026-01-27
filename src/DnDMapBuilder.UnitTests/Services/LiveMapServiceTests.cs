@@ -1,4 +1,3 @@
-using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Events;
@@ -21,8 +20,9 @@ namespace DnDMapBuilder.UnitTests.Services;
 public class LiveMapServiceTests
 {
     private readonly Mock<IGameMapRepository> _mockMapRepository;
+    private readonly Mock<IMissionRepository> _mockMissionRepository;
+    private readonly Mock<ICampaignRepository> _mockCampaignRepository;
     private readonly Mock<IGameMapHub> _mockHubContext;
-    private readonly Mock<IGameMapService> _mockGameMapService;
     private readonly Mock<ILogger<LiveMapService>> _mockLogger;
     private readonly Mock<IConfiguration> _mockConfiguration;
     private readonly LiveMapService _service;
@@ -30,8 +30,9 @@ public class LiveMapServiceTests
     public LiveMapServiceTests()
     {
         _mockMapRepository = new Mock<IGameMapRepository>();
+        _mockMissionRepository = new Mock<IMissionRepository>();
+        _mockCampaignRepository = new Mock<ICampaignRepository>();
         _mockHubContext = new Mock<IGameMapHub>();
-        _mockGameMapService = new Mock<IGameMapService>();
         _mockLogger = new Mock<ILogger<LiveMapService>>();
         _mockConfiguration = new Mock<IConfiguration>();
 
@@ -40,10 +41,11 @@ public class LiveMapServiceTests
 
         _service = new LiveMapService(
             _mockMapRepository.Object,
+            _mockMissionRepository.Object,
+            _mockCampaignRepository.Object,
             _mockHubContext.Object,
             _mockLogger.Object,
-            _mockConfiguration.Object,
-            _mockGameMapService.Object);
+            _mockConfiguration.Object);
     }
 
     private GameMap CreateLiveMap(string id = "map1", string name = "Test Map")
@@ -272,15 +274,15 @@ public class LiveMapServiceTests
         // Arrange
         var userId = "user1";
         var map = CreateDraftMap("map1");
-        var existingMapDto = new GameMapDto(
-            "map1", "Test Map", null, 10, 10,
-            new List<MapTokenInstanceDto>(),
-            "#000000", 0.3, "mission1", PublicationStatusDto.Draft);
+        var mission = new Mission { Id = "mission1", CampaignId = "campaign1", Name = "Test Mission", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var campaign = new Campaign { Id = "campaign1", OwnerId = userId, Name = "Test Campaign", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
-        _mockGameMapService.Setup(s => s.GetByIdAsync("map1", userId, default))
-            .ReturnsAsync(existingMapDto);
         _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
             .ReturnsAsync(map);
+        _mockMissionRepository.Setup(r => r.GetByIdAsync("mission1", default))
+            .ReturnsAsync(mission);
+        _mockCampaignRepository.Setup(r => r.GetByIdAsync("campaign1", default))
+            .ReturnsAsync(campaign);
         _mockMapRepository.Setup(r => r.UpdateAsync(It.IsAny<GameMap>(), default))
             .Returns(Task.CompletedTask);
 
@@ -300,8 +302,16 @@ public class LiveMapServiceTests
     {
         // Arrange
         var userId = "user1";
-        _mockGameMapService.Setup(s => s.GetByIdAsync("map1", userId, default))
-            .ReturnsAsync((GameMapDto?)null);
+        var map = CreateDraftMap("map1");
+        var mission = new Mission { Id = "mission1", CampaignId = "campaign1", Name = "Test Mission", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var campaign = new Campaign { Id = "campaign1", OwnerId = "differentUser", Name = "Test Campaign", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map);
+        _mockMissionRepository.Setup(r => r.GetByIdAsync("mission1", default))
+            .ReturnsAsync(mission);
+        _mockCampaignRepository.Setup(r => r.GetByIdAsync("campaign1", default))
+            .ReturnsAsync(campaign);
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
@@ -317,20 +327,23 @@ public class LiveMapServiceTests
     {
         // Arrange
         var userId = "user1";
-        var mapDto = new GameMapDto(
-            "map1", "Test Map", null, 10, 10,
-            new List<MapTokenInstanceDto>(),
-            "#000000", 0.3, "mission1", PublicationStatusDto.Live);
+        var map = CreateLiveMap("map1", "Test Map");
+        var mission = new Mission { Id = "mission1", CampaignId = "campaign1", Name = "Test Mission", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var campaign = new Campaign { Id = "campaign1", OwnerId = userId, Name = "Test Campaign", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
-        _mockGameMapService.Setup(s => s.GetByIdAsync("map1", userId, default))
-            .ReturnsAsync(mapDto);
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map);
+        _mockMissionRepository.Setup(r => r.GetByIdAsync("mission1", default))
+            .ReturnsAsync(mission);
+        _mockCampaignRepository.Setup(r => r.GetByIdAsync("campaign1", default))
+            .ReturnsAsync(campaign);
 
         // Act
         var snapshot = await _service.GetMapStateSnapshotAsync("map1", userId);
 
         // Assert
         snapshot.Should().NotBeNull();
-        snapshot!.Map.Should().Be(mapDto);
+        snapshot!.Map.Id.Should().Be("map1");
         snapshot.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
     }
 
@@ -339,13 +352,16 @@ public class LiveMapServiceTests
     {
         // Arrange
         var userId = "user1";
-        var mapDto = new GameMapDto(
-            "map2", "Draft Map", null, 10, 10,
-            new List<MapTokenInstanceDto>(),
-            "#000000", 0.3, "mission1", PublicationStatusDto.Draft);
+        var map = CreateDraftMap("map2", "Draft Map");
+        var mission = new Mission { Id = "mission1", CampaignId = "campaign1", Name = "Test Mission", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var campaign = new Campaign { Id = "campaign1", OwnerId = userId, Name = "Test Campaign", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
 
-        _mockGameMapService.Setup(s => s.GetByIdAsync("map2", userId, default))
-            .ReturnsAsync(mapDto);
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map2", default))
+            .ReturnsAsync(map);
+        _mockMissionRepository.Setup(r => r.GetByIdAsync("mission1", default))
+            .ReturnsAsync(mission);
+        _mockCampaignRepository.Setup(r => r.GetByIdAsync("campaign1", default))
+            .ReturnsAsync(campaign);
 
         // Act
         var snapshot = await _service.GetMapStateSnapshotAsync("map2", userId);
@@ -359,8 +375,16 @@ public class LiveMapServiceTests
     {
         // Arrange
         var userId = "user1";
-        _mockGameMapService.Setup(s => s.GetByIdAsync("map1", userId, default))
-            .ReturnsAsync((GameMapDto?)null);
+        var map = CreateLiveMap("map1", "Test Map");
+        var mission = new Mission { Id = "mission1", CampaignId = "campaign1", Name = "Test Mission", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var campaign = new Campaign { Id = "campaign1", OwnerId = "differentUser", Name = "Test Campaign", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map);
+        _mockMissionRepository.Setup(r => r.GetByIdAsync("mission1", default))
+            .ReturnsAsync(mission);
+        _mockCampaignRepository.Setup(r => r.GetByIdAsync("campaign1", default))
+            .ReturnsAsync(campaign);
 
         // Act
         var snapshot = await _service.GetMapStateSnapshotAsync("map1", userId);
@@ -428,10 +452,11 @@ public class LiveMapServiceTests
         _mockConfiguration.Setup(x => x["LiveMap:ThrottleWindowMs"]).Returns("10");
         var serviceWithShortThrottle = new LiveMapService(
             _mockMapRepository.Object,
+            _mockMissionRepository.Object,
+            _mockCampaignRepository.Object,
             _mockHubContext.Object,
             _mockLogger.Object,
-            _mockConfiguration.Object,
-            _mockGameMapService.Object);
+            _mockConfiguration.Object);
 
         // Act - First broadcast
         await serviceWithShortThrottle.BroadcastTokenMovedAsync("map1", "token1", 0, 0);

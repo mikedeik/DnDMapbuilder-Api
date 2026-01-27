@@ -20,22 +20,25 @@ namespace DnDMapBuilder.Application.Services;
 public class LiveMapService : ILiveMapService
 {
     private readonly IGameMapRepository _mapRepository;
+    private readonly IMissionRepository _missionRepository;
+    private readonly ICampaignRepository _campaignRepository;
     private readonly IGameMapHub _hubContext;
-    private readonly IGameMapService? _gameMapService;
     private readonly ILogger<LiveMapService> _logger;
     private readonly int _throttleWindowMs;
     private readonly ConcurrentDictionary<string, (DateTime LastBroadcast, SemaphoreSlim Lock)> _throttleState;
 
     public LiveMapService(
         IGameMapRepository mapRepository,
+        IMissionRepository missionRepository,
+        ICampaignRepository campaignRepository,
         IGameMapHub hubContext,
         ILogger<LiveMapService> logger,
-        IConfiguration configuration,
-        IGameMapService? gameMapService = null)
+        IConfiguration configuration)
     {
         _mapRepository = mapRepository;
+        _missionRepository = missionRepository;
+        _campaignRepository = campaignRepository;
         _hubContext = hubContext;
-        _gameMapService = gameMapService;
         _logger = logger;
         _throttleWindowMs = int.TryParse(configuration["LiveMap:ThrottleWindowMs"], out var throttleMs) ? throttleMs : 100;
         _throttleState = new ConcurrentDictionary<string, (DateTime, SemaphoreSlim)>();
@@ -133,21 +136,17 @@ public class LiveMapService : ILiveMapService
 
     public async Task SetMapPublicationStatusAsync(string mapId, PublicationStatusDto status, string userId, CancellationToken cancellationToken = default)
     {
-        // Verify user has access to this map (optional check if GameMapService is available)
-        if (_gameMapService != null)
-        {
-            var existingMap = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
-            if (existingMap == null)
-            {
-                throw new UnauthorizedAccessException("Map not found or access denied");
-            }
-        }
-
-        // Get the entity from repository to update
+        // Get the map to update
         var map = await _mapRepository.GetWithTokensAsync(mapId, cancellationToken);
         if (map == null)
         {
             throw new InvalidOperationException("Map not found");
+        }
+
+        // Verify user has access to this map via mission/campaign ownership
+        if (!await HasAccessToMapAsync(map.MissionId, userId, cancellationToken))
+        {
+            throw new UnauthorizedAccessException("Map not found or access denied");
         }
 
         map.PublicationStatus = (PublicationStatusEntity)(int)status;
@@ -165,32 +164,48 @@ public class LiveMapService : ILiveMapService
 
     public async Task<MapStateSnapshot?> GetMapStateSnapshotAsync(string mapId, string userId, CancellationToken cancellationToken = default)
     {
-        // Verify user has access to this map (requires GameMapService)
-        if (_gameMapService == null)
+        // Get the map
+        var map = await _mapRepository.GetWithTokensAsync(mapId, cancellationToken);
+        if (map == null)
         {
             return null;
         }
 
-        var mapDto = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
-        if (mapDto == null)
+        // Verify user has access to this map via mission/campaign ownership
+        if (!await HasAccessToMapAsync(map.MissionId, userId, cancellationToken))
         {
             return null;
         }
 
         // Only return snapshot for Live maps
-        if (mapDto.PublicationStatus != PublicationStatusDto.Live)
+        if (map.PublicationStatus != PublicationStatusEntity.Live)
         {
             _logger.LogInformation("Snapshot requested for Draft map {MapId}, returning null", mapId);
             return null;
         }
 
-        return new MapStateSnapshot(mapDto, DateTime.UtcNow);
+        return new MapStateSnapshot(map.ToDto(), DateTime.UtcNow);
     }
 
     /// <summary>
     /// Gets the SignalR group name for a specific map.
     /// </summary>
     private static string GetMapGroupName(string mapId) => $"map_{mapId}";
+
+    /// <summary>
+    /// Checks if user has access to a map via mission and campaign ownership.
+    /// </summary>
+    private async Task<bool> HasAccessToMapAsync(string missionId, string userId, CancellationToken cancellationToken = default)
+    {
+        var mission = await _missionRepository.GetByIdAsync(missionId, cancellationToken);
+        if (mission == null)
+        {
+            return false;
+        }
+
+        var campaign = await _campaignRepository.GetByIdAsync(mission.CampaignId, cancellationToken);
+        return campaign != null && campaign.OwnerId == userId;
+    }
 
     /// <summary>
     /// Determines if a broadcast should proceed based on throttle window.

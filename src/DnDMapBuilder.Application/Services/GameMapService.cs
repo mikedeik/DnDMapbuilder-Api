@@ -5,12 +5,12 @@ using DnDMapBuilder.Contracts.Requests;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
 using PublicationStatusEntity = DnDMapBuilder.Data.Entities.PublicationStatus;
-using PublicationStatusDto = DnDMapBuilder.Contracts.DTOs.PublicationStatus;
 
 namespace DnDMapBuilder.Application.Services;
 
 /// <summary>
 /// Service for GameMap business logic and CRUD operations.
+/// Does not handle publication status - that's managed by LiveMapService.
 /// </summary>
 public class GameMapService : IGameMapService
 {
@@ -18,20 +18,17 @@ public class GameMapService : IGameMapService
     private readonly IMissionRepository _missionRepository;
     private readonly ICampaignRepository _campaignRepository;
     private readonly IMapTokenInstanceRepository _tokenInstanceRepository;
-    private readonly ILiveMapService? _liveMapService;
 
     public GameMapService(
         IGameMapRepository mapRepository,
         IMissionRepository missionRepository,
         ICampaignRepository campaignRepository,
-        IMapTokenInstanceRepository tokenInstanceRepository,
-        ILiveMapService? liveMapService = null)
+        IMapTokenInstanceRepository tokenInstanceRepository)
     {
         _mapRepository = mapRepository;
         _missionRepository = missionRepository;
         _campaignRepository = campaignRepository;
         _tokenInstanceRepository = tokenInstanceRepository;
-        _liveMapService = liveMapService;
     }
 
     /// <summary>
@@ -77,6 +74,7 @@ public class GameMapService : IGameMapService
 
     /// <summary>
     /// Creates a new GameMap.
+    /// Maps are always created in Draft status - use LiveMapService to publish.
     /// </summary>
     /// <param name="request">Create map request</param>
     /// <param name="userId">The requesting user ID</param>
@@ -99,7 +97,7 @@ public class GameMapService : IGameMapService
             Cols = request.Cols,
             GridColor = request.GridColor,
             GridOpacity = request.GridOpacity,
-            PublicationStatus = (PublicationStatusEntity)(int)request.PublicationStatus,
+            PublicationStatus = PublicationStatusEntity.Draft,
             MissionId = request.MissionId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -111,6 +109,7 @@ public class GameMapService : IGameMapService
 
     /// <summary>
     /// Updates an existing GameMap.
+    /// Does not modify publication status - use LiveMapService.SetMapPublicationStatusAsync for that.
     /// </summary>
     /// <param name="id">The GameMap ID to update</param>
     /// <param name="request">Update map request</param>
@@ -130,17 +129,12 @@ public class GameMapService : IGameMapService
             return null;
         }
 
-        // Track if status changed to Live for broadcasting
-        var statusChangedToLive = map.PublicationStatus != PublicationStatusEntity.Live &&
-                                   request.PublicationStatus == PublicationStatusDto.Live;
-
         map.Name = request.Name;
         map.ImageUrl = request.ImageUrl;
         map.Rows = request.Rows;
         map.Cols = request.Cols;
         map.GridColor = request.GridColor;
         map.GridOpacity = request.GridOpacity;
-        map.PublicationStatus = (PublicationStatusEntity)(int)request.PublicationStatus;
         map.UpdatedAt = DateTime.UtcNow;
 
         // Update tokens
@@ -161,21 +155,6 @@ public class GameMapService : IGameMapService
         }
 
         await _mapRepository.UpdateAsync(map, cancellationToken);
-
-        // Broadcast to live views
-        if (_liveMapService != null)
-        {
-            // If status just changed to Live, broadcast the status change
-            if (statusChangedToLive)
-            {
-                await _liveMapService.SetMapPublicationStatusAsync(id, PublicationStatusDto.Live, userId, cancellationToken);
-            }
-            else
-            {
-                // Otherwise broadcast the map update if already Live
-                await _liveMapService.BroadcastMapUpdateAsync(id, cancellationToken);
-            }
-        }
 
         var updatedMap = await _mapRepository.GetWithTokensAsync(id, cancellationToken);
         return updatedMap?.ToDto();
