@@ -16,17 +16,20 @@ public class GameMapService : IGameMapService
     private readonly IMissionRepository _missionRepository;
     private readonly ICampaignRepository _campaignRepository;
     private readonly IMapTokenInstanceRepository _tokenInstanceRepository;
+    private readonly ILiveMapService? _liveMapService;
 
     public GameMapService(
         IGameMapRepository mapRepository,
         IMissionRepository missionRepository,
         ICampaignRepository campaignRepository,
-        IMapTokenInstanceRepository tokenInstanceRepository)
+        IMapTokenInstanceRepository tokenInstanceRepository,
+        ILiveMapService? liveMapService = null)
     {
         _mapRepository = mapRepository;
         _missionRepository = missionRepository;
         _campaignRepository = campaignRepository;
         _tokenInstanceRepository = tokenInstanceRepository;
+        _liveMapService = liveMapService;
     }
 
     /// <summary>
@@ -150,6 +153,12 @@ public class GameMapService : IGameMapService
         }
 
         await _mapRepository.UpdateAsync(map, cancellationToken);
+
+        // Broadcast to live views if map is being live streamed
+        if (_liveMapService != null)
+        {
+            await _liveMapService.BroadcastMapUpdateAsync(id, cancellationToken);
+        }
 
         var updatedMap = await _mapRepository.GetWithTokensAsync(id, cancellationToken);
         return updatedMap?.ToDto();
