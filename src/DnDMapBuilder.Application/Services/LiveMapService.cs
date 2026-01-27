@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Mappings;
 using DnDMapBuilder.Contracts.DTOs;
@@ -5,6 +6,7 @@ using DnDMapBuilder.Contracts.Events;
 using DnDMapBuilder.Contracts.Interfaces;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PublicationStatusEntity = DnDMapBuilder.Data.Entities.PublicationStatus;
 using PublicationStatusDto = DnDMapBuilder.Contracts.DTOs.PublicationStatus;
@@ -21,17 +23,22 @@ public class LiveMapService : ILiveMapService
     private readonly IGameMapHub _hubContext;
     private readonly IGameMapService _gameMapService;
     private readonly ILogger<LiveMapService> _logger;
+    private readonly int _throttleWindowMs;
+    private readonly ConcurrentDictionary<string, (DateTime LastBroadcast, SemaphoreSlim Lock)> _throttleState;
 
     public LiveMapService(
         IGameMapRepository mapRepository,
         IGameMapHub hubContext,
         IGameMapService gameMapService,
-        ILogger<LiveMapService> logger)
+        ILogger<LiveMapService> logger,
+        IConfiguration configuration)
     {
         _mapRepository = mapRepository;
         _hubContext = hubContext;
         _gameMapService = gameMapService;
         _logger = logger;
+        _throttleWindowMs = int.TryParse(configuration["LiveMap:ThrottleWindowMs"], out var throttleMs) ? throttleMs : 100;
+        _throttleState = new ConcurrentDictionary<string, (DateTime, SemaphoreSlim)>();
     }
 
     public async Task BroadcastMapUpdateAsync(string mapId, CancellationToken cancellationToken = default)
@@ -71,6 +78,13 @@ public class LiveMapService : ILiveMapService
         if (map == null || map.PublicationStatus != PublicationStatusEntity.Live)
         {
             _logger.LogDebug("Skipping token moved broadcast for map {MapId}", mapId);
+            return;
+        }
+
+        // Apply throttling for token movement broadcasts
+        if (!await ShouldBroadcastAsync(mapId))
+        {
+            _logger.LogDebug("Token moved broadcast throttled for map {MapId}", mapId);
             return;
         }
 
@@ -169,4 +183,35 @@ public class LiveMapService : ILiveMapService
     /// Gets the SignalR group name for a specific map.
     /// </summary>
     private static string GetMapGroupName(string mapId) => $"map_{mapId}";
+
+    /// <summary>
+    /// Determines if a broadcast should proceed based on throttle window.
+    /// Implements sliding window throttling per map to reduce excessive broadcasts during rapid updates.
+    /// </summary>
+    /// <param name="mapId">The map ID to check throttle state for</param>
+    /// <returns>True if broadcast should proceed, false if throttled</returns>
+    private Task<bool> ShouldBroadcastAsync(string mapId)
+    {
+        var now = DateTime.UtcNow;
+
+        // Ensure throttle state exists for this map
+        if (!_throttleState.ContainsKey(mapId))
+        {
+            _throttleState.TryAdd(mapId, (now, new SemaphoreSlim(1, 1)));
+            return Task.FromResult(true);
+        }
+
+        var (lastBroadcast, lockObj) = _throttleState[mapId];
+        var timeSinceLastBroadcast = (now - lastBroadcast).TotalMilliseconds;
+
+        if (timeSinceLastBroadcast >= _throttleWindowMs)
+        {
+            // Throttle window has elapsed, allow broadcast and update timestamp
+            _throttleState[mapId] = (now, lockObj);
+            return Task.FromResult(true);
+        }
+
+        // Still within throttle window, reject broadcast
+        return Task.FromResult(false);
+    }
 }

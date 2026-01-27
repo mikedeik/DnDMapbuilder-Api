@@ -6,6 +6,7 @@ using DnDMapBuilder.Contracts.Interfaces;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -23,6 +24,7 @@ public class LiveMapServiceTests
     private readonly Mock<IGameMapHub> _mockHubContext;
     private readonly Mock<IGameMapService> _mockGameMapService;
     private readonly Mock<ILogger<LiveMapService>> _mockLogger;
+    private readonly Mock<IConfiguration> _mockConfiguration;
     private readonly LiveMapService _service;
 
     public LiveMapServiceTests()
@@ -31,12 +33,17 @@ public class LiveMapServiceTests
         _mockHubContext = new Mock<IGameMapHub>();
         _mockGameMapService = new Mock<IGameMapService>();
         _mockLogger = new Mock<ILogger<LiveMapService>>();
+        _mockConfiguration = new Mock<IConfiguration>();
+
+        // Default throttle window configuration
+        _mockConfiguration.Setup(x => x["LiveMap:ThrottleWindowMs"]).Returns("100");
 
         _service = new LiveMapService(
             _mockMapRepository.Object,
             _mockHubContext.Object,
             _mockGameMapService.Object,
-            _mockLogger.Object);
+            _mockLogger.Object,
+            _mockConfiguration.Object);
     }
 
     private GameMap CreateLiveMap(string id = "map1", string name = "Test Map")
@@ -360,6 +367,85 @@ public class LiveMapServiceTests
 
         // Assert
         snapshot.Should().BeNull();
+    }
+
+    #endregion
+
+    #region Throttling Tests
+
+    [Fact]
+    public async Task BroadcastTokenMovedAsync_RapidConsecutiveCalls_ThrottlesAfterFirstBroadcast()
+    {
+        // Arrange
+        var map = CreateLiveMap();
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map);
+
+        // Act - Call broadcast multiple times in quick succession
+        await _service.BroadcastTokenMovedAsync("map1", "token1", 0, 0);
+        await _service.BroadcastTokenMovedAsync("map1", "token1", 1, 1);
+        await _service.BroadcastTokenMovedAsync("map1", "token1", 2, 2);
+
+        // Assert - Should only broadcast once due to throttling
+        _mockHubContext.Verify(
+            h => h.SendAsync("map_map1", "TokenMoved", It.IsAny<TokenMovedEvent>(), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task BroadcastTokenMovedAsync_DifferentMaps_HaveIndependentThrottle()
+    {
+        // Arrange
+        var map1 = CreateLiveMap("map1");
+        var map2 = CreateLiveMap("map2");
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map1);
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map2", default))
+            .ReturnsAsync(map2);
+
+        // Act - Broadcast on different maps
+        await _service.BroadcastTokenMovedAsync("map1", "token1", 0, 0);
+        await _service.BroadcastTokenMovedAsync("map2", "token1", 0, 0);
+
+        // Assert - Both should broadcast (different maps have independent throttle)
+        _mockHubContext.Verify(
+            h => h.SendAsync("map_map1", "TokenMoved", It.IsAny<TokenMovedEvent>(), default),
+            Times.Once);
+        _mockHubContext.Verify(
+            h => h.SendAsync("map_map2", "TokenMoved", It.IsAny<TokenMovedEvent>(), default),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task BroadcastTokenMovedAsync_AfterThrottleWindowElapsed_AllowsBroadcast()
+    {
+        // Arrange
+        var map = CreateLiveMap();
+        _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default))
+            .ReturnsAsync(map);
+
+        // Use shorter throttle window for testing (10ms)
+        _mockConfiguration.Setup(x => x["LiveMap:ThrottleWindowMs"]).Returns("10");
+        var serviceWithShortThrottle = new LiveMapService(
+            _mockMapRepository.Object,
+            _mockHubContext.Object,
+            _mockGameMapService.Object,
+            _mockLogger.Object,
+            _mockConfiguration.Object);
+
+        // Act - First broadcast
+        await serviceWithShortThrottle.BroadcastTokenMovedAsync("map1", "token1", 0, 0);
+
+        // Wait for throttle window to elapse
+        await Task.Delay(15);
+
+        // Second broadcast after throttle window
+        await serviceWithShortThrottle.BroadcastTokenMovedAsync("map1", "token1", 1, 1);
+
+        // Assert - Both broadcasts should go through
+        _mockHubContext.Verify(
+            h => h.SendAsync("map_map1", "TokenMoved", It.IsAny<TokenMovedEvent>(), default),
+            Times.Exactly(2));
     }
 
     #endregion
