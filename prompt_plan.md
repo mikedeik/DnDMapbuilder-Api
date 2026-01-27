@@ -47,7 +47,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 1: Add PublicationStatus to GameMap Entity
 - **uniqueId**: `step-live-map-001`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Extend the `GameMap` entity with a `PublicationStatus` property to track whether a map is in Draft or Live state. This foundational change enables DMs to control when maps are broadcast to live views.
 - **TDD Approach**:
   - **Test Cases**:
@@ -70,7 +70,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 2: Add SignalR NuGet Package and Configure Hub Infrastructure
 - **uniqueId**: `step-live-map-002`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Install SignalR package, configure middleware in `Program.cs`, and create base `GameMapHub` class with authentication. Establish SignalR pipeline before implementing business logic.
 - **TDD Approach**:
   - **Test Cases**:
@@ -124,7 +124,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 3: Implement Map Group Management in GameMapHub
 - **uniqueId**: `step-live-map-003`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Add SignalR group management methods to allow clients to subscribe/unsubscribe to specific map updates. Clients join a group named `map_{mapId}` to receive targeted broadcasts.
 - **TDD Approach**:
   - **Test Cases**:
@@ -167,7 +167,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 4: Create Live Map Event DTOs and Contracts
 - **uniqueId**: `step-live-map-004`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Define strongly-typed DTOs for SignalR events (map updates, token movements, status changes). These contracts ensure type safety between server and client.
 - **TDD Approach**:
   - **Test Cases**:
@@ -235,7 +235,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 5: Create ILiveMapService Interface and Implementation
 - **uniqueId**: `step-live-map-005`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Implement service layer to encapsulate live map business logic including broadcasting events, managing publication status, and providing map state snapshots for new connections.
 - **TDD Approach**:
   - **Test Cases**:
@@ -294,7 +294,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 6: Integrate LiveMapService Broadcasts into GameMapService
 - **uniqueId**: `step-live-map-006`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Modify existing `GameMapService.UpdateAsync()` method to trigger real-time broadcasts via `ILiveMapService` when maps or tokens are updated.
 - **TDD Approach**:
   - **Test Cases**:
@@ -322,7 +322,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 7: Create LiveMapsController with Publication Status Endpoints
 - **uniqueId**: `step-live-map-007`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Add REST API controller for managing map publication status (Draft/Live) and retrieving live map state snapshots. Provides endpoints for DM to control which maps are broadcast.
 - **TDD Approach**:
   - **Test Cases**:
