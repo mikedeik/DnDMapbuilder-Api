@@ -644,7 +644,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 14: Create Frontend API Documentation
 - **uniqueId**: `step-live-map-014`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Generate comprehensive markdown documentation for frontend developers covering REST endpoints, SignalR hub methods, DTOs, authentication flow, and example code snippets.
 - **TDD Approach**:
   - **Test Cases**: N/A (documentation task)
