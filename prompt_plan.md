@@ -550,7 +550,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 11: Update Existing GameMapController to Support Publication Status
 - **uniqueId**: `step-live-map-011`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Modify `GameMapsController` to include `PublicationStatus` in responses and allow setting status during map creation/updates.
 - **TDD Approach**:
   - **Test Cases**:
