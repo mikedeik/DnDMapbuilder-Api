@@ -573,7 +573,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 12: Add Logging and Telemetry for Live Map Operations
 - **uniqueId**: `step-live-map-012`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Instrument `LiveMapService` and `GameMapHub` with structured logging and telemetry for monitoring connection counts, broadcast performance, and error rates.
 - **TDD Approach**:
   - **Test Cases**:
