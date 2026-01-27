@@ -602,7 +602,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 13: Performance Optimization - Implement Broadcast Throttling
 - **uniqueId**: `step-live-map-013`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Add throttling/debouncing to prevent excessive SignalR broadcasts when DM makes rapid consecutive updates (e.g., dragging multiple tokens). Use sliding window to batch updates.
 - **TDD Approach**:
   - **Test Cases**:
