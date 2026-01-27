@@ -18,7 +18,8 @@ namespace DnDMapBuilder.Infrastructure.Telemetry;
 public static class TelemetryConfiguration
 {
     /// <summary>
-    /// Adds OpenTelemetry tracing and metrics to the service collection.
+    /// Extends OpenTelemetry tracing configuration with custom instrumentation.
+    /// Must be called after AddServiceDefaults() which initializes OpenTelemetry.
     /// </summary>
     /// <param name="services">The service collection to configure</param>
     /// <param name="configuration">The application configuration</param>
@@ -29,38 +30,36 @@ public static class TelemetryConfiguration
         IConfiguration configuration,
         bool isDevelopment)
     {
-        var otlpEndpoint = configuration["Telemetry:OtlpEndpoint"];
-
-        // Configure tracing
-        services.ConfigureOpenTelemetryTracerProvider((sp, builder) =>
-        {
-            builder
-                .AddAspNetCoreInstrumentation(options =>
-                {
-                    options.RecordException = true;
-                    options.EnrichWithHttpRequest = EnrichWithHttpRequest;
-                    options.EnrichWithHttpResponse = EnrichWithHttpResponse;
-                })
-                .AddHttpClientInstrumentation(options =>
-                {
-                    options.RecordException = true;
-                })
-                .AddSqlClientInstrumentation(options =>
-                {
-                    options.RecordException = true;
-                })
-                .AddSource("DnDMapBuilder.Services")
-                .AddSource("DnDMapBuilder.Repositories");
-
-            // Export to OTLP endpoint if configured
-            if (!string.IsNullOrEmpty(otlpEndpoint))
+        // Extend the existing OpenTelemetry configuration from Aspire ServiceDefaults
+        // AddOpenTelemetry() returns the existing builder if already called
+        services.AddOpenTelemetry()
+            .WithTracing(builder =>
             {
-                builder.AddOtlpExporter(options =>
+                // Add custom activity sources
+                builder
+                    .AddSource("DnDMapBuilder.Services")
+                    .AddSource("DnDMapBuilder.Repositories");
+
+                // Add SQL Client instrumentation (not included in Aspire defaults)
+                builder.AddSqlClientInstrumentation(options =>
                 {
-                    options.Endpoint = new Uri(otlpEndpoint);
-                    options.Protocol = OtlpExportProtocol.Grpc;
+                    options.RecordException = true;
                 });
-            }
+            });
+
+        // Configure ASP.NET Core instrumentation enrichment
+        // This configures the existing instrumentation added by Aspire
+        services.Configure<AspNetCoreTraceInstrumentationOptions>(options =>
+        {
+            options.RecordException = true;
+            options.EnrichWithHttpRequest = EnrichWithHttpRequest;
+            options.EnrichWithHttpResponse = EnrichWithHttpResponse;
+        });
+
+        // Configure HTTP Client instrumentation enrichment
+        services.Configure<HttpClientTraceInstrumentationOptions>(options =>
+        {
+            options.RecordException = true;
         });
 
         // Register telemetry service

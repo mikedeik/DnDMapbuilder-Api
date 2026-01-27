@@ -1,1376 +1,795 @@
-# OAuth Authentication Implementation - Backend
+# Implementation Plan: Real-time DM Live Map Display via SignalR WebSocket
 
 ## Overview
+This implementation adds real-time map viewing capabilities for Dungeon Masters (DMs) to display game maps on a separate screen (TV/projector) during tabletop RPG sessions. The feature uses SignalR for WebSocket-based real-time bidirectional communication between the DM's editing interface and a passive live display view. Only DMs are authenticated - no player accounts or separate authentication is required.
 
-This plan outlines the implementation of Google and Apple OAuth authentication for the DnD Map Builder API. The implementation will allow users to sign in using their Google or Apple accounts as an alternative to email/password authentication.
-
----
+**Core Architecture**: The implementation follows a one-authenticated-user, two-view pattern where the DM uses their existing JWT token to access both the main editing interface and the live display endpoint (`/gamemaps/{mapId}/live`). Map state changes (token movements, grid updates, map switches) are broadcast via SignalR Hub to all connected clients subscribing to that map.
 
 ## Architecture Decisions
 
-### OAuth Flow
-- **Flow Type**: Authorization Code Flow with PKCE (recommended for security)
-- **Token Handling**: Backend validates OAuth tokens and issues its own JWT tokens
-- **User Linking**: OAuth accounts can be linked to existing email-based accounts
+### 1. Clean Architecture Alignment
+- **Domain Layer** (`DnDMapBuilder.Data.Entities`): Add `PublicationStatus` enum to `GameMap` entity
+- **Application Layer** (`DnDMapBuilder.Application`): Create `ILiveMapService` and `LiveMapService` for business logic
+- **API Layer** (`DnDMapBuilder.Api`): Add `LiveMapsController` for REST endpoints and `GameMapHub` for SignalR
+- **Contracts Layer** (`DnDMapBuilder.Contracts`): Add DTOs for live map events and publication status
 
-### Database Changes
-- Add OAuth provider fields to User entity
-- Support multiple OAuth providers per user
-- Store provider-specific user IDs for account linking
+### 2. SignalR Hub Design Pattern
+- **Hub-based Architecture**: Use SignalR's Hub pattern for managing WebSocket connections
+- **Map-scoped Groups**: Clients join SignalR groups based on `mapId` for targeted broadcasting
+- **Authentication**: Hub connections authenticated via JWT in query string or headers
+- **Connection Lifecycle**: Manage connection/disconnection, automatic group cleanup
 
----
+### 3. Publication Status Pattern
+- Add `PublicationStatus` enum: `Draft`, `Live`
+- Draft maps are editable but not broadcast to live views
+- Setting status to `Live` enables real-time broadcasting
+- Status changes trigger SignalR events to live view clients
+
+### 4. Event-Driven Updates
+- Map updates in main app trigger `ILiveMapService.BroadcastMapUpdateAsync()`
+- Service publishes events to SignalR Hub only if map status is `Live`
+- Events: `MapUpdated`, `TokenMoved`, `TokenAdded`, `TokenRemoved`, `MapStatusChanged`
+
+### 5. Testing Strategy
+- **Unit Tests**: Service logic, Hub methods, authorization policies (using xUnit + Moq pattern)
+- **Integration Tests**: SignalR connection lifecycle, JWT authentication, end-to-end message flow
+- **Test Doubles**: Mock `IHubContext<GameMapHub>` for service tests
+
+### 6. Existing Pattern Consistency
+- JWT Bearer authentication (already configured in `Program.cs`)
+- Repository pattern with interfaces (`IGameMapRepository`)
+- Service layer separation (`IGameMapService`, `ILiveMapService`)
+- Controller-based REST endpoints with `ApiResponse<T>` wrapper
+- Entity Framework Core for persistence
+- Moq + FluentAssertions for testing
 
 ## Implementation Steps
 
----
+### Step 1: Add PublicationStatus to GameMap Entity
+- **uniqueId**: `step-live-map-001`
+- **status**: `done`
+- **description**: Extend the `GameMap` entity with a `PublicationStatus` property to track whether a map is in Draft or Live state. This foundational change enables DMs to control when maps are broadcast to live views.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: Create `GameMap` with default `PublicationStatus` of `Draft`
+    - Unit test: Update `GameMap.PublicationStatus` to `Live` and verify persistence
+    - Integration test: Query maps filtered by `PublicationStatus`
+  - **Implementation Guidelines**:
+    1. Create `PublicationStatus` enum in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Data/Entities/PublicationStatus.cs` with values: `Draft = 0`, `Live = 1`
+    2. Add property to `GameMap.cs`: `public PublicationStatus PublicationStatus { get; set; } = PublicationStatus.Draft;`
+    3. Create EF Core migration: `dotnet ef migrations add AddPublicationStatusToGameMap --project src/DnDMapBuilder.Data --startup-project src/DnDMapBuilder.Api`
+    4. Update `GameMapDto` record in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Contracts/DTOs/GameMapDto.cs` to include `PublicationStatus PublicationStatus`
+    5. Update mapping extension in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Application/Mappings/GameMapMappings.cs` (create if not exists) to map `PublicationStatus`
+  - **Acceptance Criteria**:
+    - Migration applies successfully without errors
+    - Existing maps default to `Draft` status
+    - `GameMapDto` includes `PublicationStatus` in serialization
+    - No breaking changes to existing API responses
+- **Dependencies**: None
+- **Estimated Scope**: Small
 
-### STEP-OAUTH-BE-001
+### Step 2: Add SignalR NuGet Package and Configure Hub Infrastructure
+- **uniqueId**: `step-live-map-002`
+- **status**: `done`
+- **description**: Install SignalR package, configure middleware in `Program.cs`, and create base `GameMapHub` class with authentication. Establish SignalR pipeline before implementing business logic.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Integration test: Verify SignalR endpoint is registered at `/hubs/gamemap`
+    - Integration test: Unauthenticated connection is rejected with 401
+    - Integration test: Authenticated connection with valid JWT succeeds
+    - Unit test: Hub `OnConnectedAsync` logs connection with user ID from claims
+  - **Implementation Guidelines**:
+    1. Add package reference to `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/DnDMapBuilder.Api.csproj`: `<PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />`
+    2. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Hubs/GameMapHub.cs`:
+       ```csharp
+       [Authorize]
+       public class GameMapHub : Hub
+       {
+           private readonly ILogger<GameMapHub> _logger;
+           public GameMapHub(ILogger<GameMapHub> logger) { _logger = logger; }
 
-**Status:** done
-**Task:** Add Required NuGet Packages
-**Files:** `src/DnDMapBuilder.Api/DnDMapBuilder.Api.csproj`
+           public override Task OnConnectedAsync()
+           {
+               var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+               _logger.LogInformation("User {UserId} connected to GameMapHub", userId);
+               return base.OnConnectedAsync();
+           }
+       }
+       ```
+    3. In `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Program.cs`, add after line 35: `builder.Services.AddSignalR();`
+    4. In `Program.cs`, add before `app.Run()`: `app.MapHub<GameMapHub>("/hubs/gamemap");`
+    5. Configure JWT authentication for SignalR by adding to JWT options (line 81-93):
+       ```csharp
+       options.Events = new JwtBearerEvents
+       {
+           OnMessageReceived = context =>
+           {
+               var accessToken = context.Request.Query["access_token"];
+               var path = context.HttpContext.Request.Path;
+               if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+               {
+                   context.Token = accessToken;
+               }
+               return Task.CompletedTask;
+           }
+       };
+       ```
+  - **Acceptance Criteria**:
+    - SignalR services registered in DI container
+    - Hub endpoint accessible at `/hubs/gamemap`
+    - JWT token from query string authenticates SignalR connections
+    - Hub rejects connections without valid JWT
+- **Dependencies**: None
+- **Estimated Scope**: Small
 
-**Instructions:**
+### Step 3: Implement Map Group Management in GameMapHub
+- **uniqueId**: `step-live-map-003`
+- **status**: `done`
+- **description**: Add SignalR group management methods to allow clients to subscribe/unsubscribe to specific map updates. Clients join a group named `map_{mapId}` to receive targeted broadcasts.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: `JoinMapGroup(mapId)` adds connection to correct group
+    - Unit test: `LeaveMapGroup(mapId)` removes connection from group
+    - Unit test: Multiple clients can join same map group
+    - Integration test: Client receives messages only for subscribed map groups
+    - Unit test: Verify user has access to map before joining group (check ownership via campaign)
+  - **Implementation Guidelines**:
+    1. Inject `IGameMapService` into `GameMapHub` constructor for authorization checks
+    2. Add method to `GameMapHub.cs`:
+       ```csharp
+       public async Task JoinMapGroup(string mapId)
+       {
+           var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+           if (userId == null) throw new HubException("Unauthorized");
 
-1. Add the following NuGet packages to the API project:
+           // Verify user has access to this map
+           var map = await _gameMapService.GetByIdAsync(mapId, userId);
+           if (map == null) throw new HubException("Map not found or access denied");
 
-```xml
-<PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="9.0.0" />
-<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
-```
+           await Groups.AddToGroupAsync(Context.ConnectionId, $"map_{mapId}");
+           _logger.LogInformation("User {UserId} joined map group {MapId}", userId, mapId);
+       }
 
-2. For Apple Sign-In, we'll use a custom implementation since Apple requires JWT-based client secrets. Add:
+       public async Task LeaveMapGroup(string mapId)
+       {
+           await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"map_{mapId}");
+           _logger.LogInformation("Connection {ConnectionId} left map group {MapId}", Context.ConnectionId, mapId);
+       }
+       ```
+    3. Override `OnDisconnectedAsync` to log disconnections
+  - **Acceptance Criteria**:
+    - Clients can join/leave map groups dynamically
+    - Authorization check prevents unauthorized map access
+    - Connection is automatically cleaned up on disconnect
+    - Group names follow consistent pattern: `map_{mapId}`
+- **Dependencies**: `step-live-map-002`
+- **Estimated Scope**: Small
 
-```xml
-<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
-```
+### Step 4: Create Live Map Event DTOs and Contracts
+- **uniqueId**: `step-live-map-004`
+- **status**: `done`
+- **description**: Define strongly-typed DTOs for SignalR events (map updates, token movements, status changes). These contracts ensure type safety between server and client.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: Serialize `MapUpdatedEvent` to JSON and verify all properties present
+    - Unit test: Deserialize JSON to `TokenMovedEvent` and validate data integrity
+    - Unit test: Validate that event DTOs include timestamp for client-side ordering
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Contracts/Events/LiveMapEvents.cs`:
+       ```csharp
+       namespace DnDMapBuilder.Contracts.Events;
 
-3. Run `dotnet restore` to install packages
+       public record MapUpdatedEvent(
+           string MapId,
+           string Name,
+           int Rows,
+           int Cols,
+           string GridColor,
+           double GridOpacity,
+           string? ImageUrl,
+           DateTime Timestamp
+       );
 
-4. Verify build succeeds: `dotnet build`
+       public record TokenMovedEvent(
+           string MapId,
+           string TokenInstanceId,
+           int X,
+           int Y,
+           DateTime Timestamp
+       );
 
----
+       public record TokenAddedEvent(
+           string MapId,
+           string TokenInstanceId,
+           string TokenId,
+           int X,
+           int Y,
+           DateTime Timestamp
+       );
 
-### STEP-OAUTH-BE-002
+       public record TokenRemovedEvent(
+           string MapId,
+           string TokenInstanceId,
+           DateTime Timestamp
+       );
 
-**Status:** done
-**Task:** Update User Entity for OAuth Support
-**Files:** `src/DnDMapBuilder.Data/Entities/User.cs`
+       public record MapStatusChangedEvent(
+           string MapId,
+           PublicationStatus NewStatus,
+           DateTime Timestamp
+       );
 
-**Instructions:**
+       public record MapStateSnapshot(
+           GameMapDto Map,
+           DateTime Timestamp
+       );
+       ```
+    2. Ensure `PublicationStatus` enum is in Contracts project for sharing
+  - **Acceptance Criteria**:
+    - All event records are immutable (using `record` keyword)
+    - Events include timestamp for ordering/debugging
+    - DTOs serialize/deserialize correctly in JSON
+    - No circular references in navigation properties
+- **Dependencies**: `step-live-map-001`
+- **Estimated Scope**: Small
 
-1. Read the current User.cs entity file
+### Step 5: Create ILiveMapService Interface and Implementation
+- **uniqueId**: `step-live-map-005`
+- **status**: `done`
+- **description**: Implement service layer to encapsulate live map business logic including broadcasting events, managing publication status, and providing map state snapshots for new connections.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: `BroadcastMapUpdateAsync()` calls Hub's `SendAsync` with correct event to correct group
+    - Unit test: `BroadcastMapUpdateAsync()` does NOT broadcast if map status is `Draft`
+    - Unit test: `BroadcastMapUpdateAsync()` DOES broadcast if map status is `Live`
+    - Unit test: `BroadcastTokenMovedAsync()` constructs correct `TokenMovedEvent`
+    - Unit test: `SetMapPublicationStatusAsync()` updates entity and broadcasts `MapStatusChangedEvent`
+    - Unit test: `GetMapStateSnapshotAsync()` returns full map with tokens for Live maps only
+    - Unit test: Service throws `UnauthorizedAccessException` if user doesn't own campaign
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Application/Interfaces/ILiveMapService.cs`:
+       ```csharp
+       public interface ILiveMapService
+       {
+           Task BroadcastMapUpdateAsync(string mapId, CancellationToken cancellationToken = default);
+           Task BroadcastTokenMovedAsync(string mapId, string tokenInstanceId, int x, int y, CancellationToken cancellationToken = default);
+           Task BroadcastTokenAddedAsync(string mapId, string tokenInstanceId, CancellationToken cancellationToken = default);
+           Task BroadcastTokenRemovedAsync(string mapId, string tokenInstanceId, CancellationToken cancellationToken = default);
+           Task SetMapPublicationStatusAsync(string mapId, PublicationStatus status, string userId, CancellationToken cancellationToken = default);
+           Task<MapStateSnapshot?> GetMapStateSnapshotAsync(string mapId, string userId, CancellationToken cancellationToken = default);
+       }
+       ```
+    2. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Application/Services/LiveMapService.cs`:
+       ```csharp
+       public class LiveMapService : ILiveMapService
+       {
+           private readonly IGameMapRepository _mapRepository;
+           private readonly IHubContext<GameMapHub> _hubContext;
+           private readonly IGameMapService _gameMapService;
+           private readonly ILogger<LiveMapService> _logger;
 
-2. Add the following OAuth-related properties:
+           // Constructor with DI
 
-```csharp
-/// <summary>
-/// The OAuth provider used for authentication (null for email/password users)
-/// Values: "google", "apple", null
-/// </summary>
-public string? OAuthProvider { get; set; }
+           public async Task BroadcastMapUpdateAsync(string mapId, CancellationToken cancellationToken = default)
+           {
+               var map = await _mapRepository.GetWithTokensAsync(mapId, cancellationToken);
+               if (map == null || map.PublicationStatus != PublicationStatus.Live) return;
 
-/// <summary>
-/// The unique identifier from the OAuth provider
-/// </summary>
-public string? OAuthProviderId { get; set; }
+               var evt = new MapUpdatedEvent(map.Id, map.Name, map.Rows, map.Cols, map.GridColor, map.GridOpacity, map.ImageUrl, DateTime.UtcNow);
+               await _hubContext.Clients.Group($"map_{mapId}").SendAsync("MapUpdated", evt, cancellationToken);
+           }
 
-/// <summary>
-/// URL to the user's profile picture from OAuth provider
-/// </summary>
-public string? ProfilePictureUrl { get; set; }
+           // Implement other methods similarly...
+       }
+       ```
+    3. Register in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Program.cs` (after line 145): `builder.Services.AddScoped<ILiveMapService, LiveMapService>();`
+  - **Acceptance Criteria**:
+    - Service only broadcasts if map status is `Live`
+    - All broadcasts target correct SignalR group: `map_{mapId}`
+    - Service validates user authorization before state changes
+    - Exceptions are logged appropriately
+    - All async methods use cancellation tokens
+- **Dependencies**: `step-live-map-003`, `step-live-map-004`
+- **Estimated Scope**: Medium
 
-/// <summary>
-/// Whether the email has been verified by the OAuth provider
-/// </summary>
-public bool EmailVerified { get; set; }
-```
+### Step 6: Integrate LiveMapService Broadcasts into GameMapService
+- **uniqueId**: `step-live-map-006`
+- **status**: `done`
+- **description**: Modify existing `GameMapService.UpdateAsync()` method to trigger real-time broadcasts via `ILiveMapService` when maps or tokens are updated.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: `UpdateAsync()` calls `BroadcastMapUpdateAsync()` after successful update
+    - Unit test: Token position update triggers `BroadcastTokenMovedAsync()`
+    - Unit test: Broadcast is NOT called if update fails
+    - Unit test: Broadcast is NOT called if map status is `Draft`
+    - Integration test: End-to-end map update broadcasts event to SignalR clients
+  - **Implementation Guidelines**:
+    1. Inject `ILiveMapService` into `GameMapService` constructor in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Application/Services/GameMapService.cs`
+    2. In `UpdateAsync()` method (after line 155), add:
+       ```csharp
+       // Broadcast to live views if map is Live
+       await _liveMapService.BroadcastMapUpdateAsync(id, cancellationToken);
+       ```
+    3. Consider broadcasting individual token movements if updating only tokens (optimize for performance)
+    4. Update unit tests in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.UnitTests/Services/GameMapServiceTests.cs` (create if not exists) to verify broadcast calls
+  - **Acceptance Criteria**:
+    - Map updates automatically broadcast to SignalR clients
+    - No performance degradation for Draft maps
+    - Service remains testable with mocked `ILiveMapService`
+    - Broadcasts are fire-and-forget (don't block update response)
+- **Dependencies**: `step-live-map-005`
+- **Estimated Scope**: Small
 
-3. Ensure the entity still compiles correctly
+### Step 7: Create LiveMapsController with Publication Status Endpoints
+- **uniqueId**: `step-live-map-007`
+- **status**: `done`
+- **description**: Add REST API controller for managing map publication status (Draft/Live) and retrieving live map state snapshots. Provides endpoints for DM to control which maps are broadcast.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: `PUT /api/v1/livemaps/{mapId}/status` returns 200 with updated map
+    - Unit test: Endpoint rejects unauthorized user with 403
+    - Unit test: `GET /api/v1/livemaps/{mapId}/snapshot` returns full map state for Live maps
+    - Unit test: `GET /api/v1/livemaps/{mapId}/snapshot` returns 404 for Draft maps
+    - Integration test: Status change triggers SignalR broadcast
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Controllers/LiveMapsController.cs`:
+       ```csharp
+       [ApiVersion("1.0")]
+       [Authorize]
+       [ApiController]
+       [Route("api/v{version:apiVersion}/[controller]")]
+       public class LiveMapsController : ControllerBase
+       {
+           private readonly ILiveMapService _liveMapService;
 
-4. Run `dotnet build` to verify
+           [HttpPut("{mapId}/status")]
+           [ResponseCache(CacheProfileName = "NoCache")]
+           public async Task<ActionResult<ApiResponse<bool>>> SetPublicationStatus(
+               string mapId,
+               [FromBody] SetPublicationStatusRequest request,
+               CancellationToken cancellationToken)
+           {
+               var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+               await _liveMapService.SetMapPublicationStatusAsync(mapId, request.Status, userId, cancellationToken);
+               return Ok(new ApiResponse<bool>(true, true, "Publication status updated."));
+           }
 
----
+           [HttpGet("{mapId}/snapshot")]
+           [ResponseCache(CacheProfileName = "NoCache")]
+           public async Task<ActionResult<ApiResponse<MapStateSnapshot>>> GetSnapshot(
+               string mapId,
+               CancellationToken cancellationToken)
+           {
+               var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
+               var snapshot = await _liveMapService.GetMapStateSnapshotAsync(mapId, userId, cancellationToken);
 
-### STEP-OAUTH-BE-003
+               if (snapshot == null)
+                   return NotFound(new ApiResponse<MapStateSnapshot>(false, null, "Map not found or not live."));
 
-**Status:** done
-**Task:** Create Database Migration for OAuth Fields
-**Files:** `src/DnDMapBuilder.Data/Migrations/`
+               return Ok(new ApiResponse<MapStateSnapshot>(true, snapshot));
+           }
+       }
+       ```
+    2. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Contracts/Requests/SetPublicationStatusRequest.cs`:
+       ```csharp
+       public record SetPublicationStatusRequest(PublicationStatus Status);
+       ```
+  - **Acceptance Criteria**:
+    - Endpoints follow existing API conventions (versioning, authorization, response wrapping)
+    - Status changes are audited in logs
+    - Snapshot endpoint returns 404 for Draft maps
+    - All endpoints require valid JWT authentication
+- **Dependencies**: `step-live-map-005`
+- **Estimated Scope**: Small
 
-**Instructions:**
+### Step 8: Add Live View Endpoint for Frontend Display
+- **uniqueId**: `step-live-map-008`
+- **status**: `skipped`
+- **description**: Create a dedicated MVC endpoint `/gamemaps/{mapId}/live` that serves an HTML page for the live display view. This page authenticates using the DM's token from browser storage and connects to SignalR.
+- **skip_reason**: This project does not display UI in the backend - frontend implementation is out of scope
+- **TDD Approach**:
+  - **Test Cases**:
+    - Integration test: `GET /gamemaps/{mapId}/live` returns 200 with HTML content
+    - Integration test: Endpoint requires authentication (redirects to login if no token)
+    - Integration test: Page includes SignalR client library script reference
+    - Integration test: Page renders initial map state from snapshot API
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Controllers/LiveViewController.cs`:
+       ```csharp
+       [Authorize]
+       [Route("gamemaps")]
+       public class LiveViewController : Controller
+       {
+           [HttpGet("{mapId}/live")]
+           public IActionResult LiveView(string mapId)
+           {
+               ViewData["MapId"] = mapId;
+               return View("LiveView");
+           }
+       }
+       ```
+    2. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Views/Shared/_Layout.cshtml` (basic layout with SignalR CDN)
+    3. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/Views/LiveView.cshtml`:
+       - Include SignalR client: `<script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@latest/dist/browser/signalr.min.js"></script>`
+       - JavaScript to establish SignalR connection with JWT from localStorage/cookie
+       - Canvas/grid rendering logic for map display
+       - Event listeners for `MapUpdated`, `TokenMoved`, etc.
+    4. Enable MVC in `Program.cs` (line 33): Change `AddControllers()` to `AddControllersWithViews()` and add `app.MapControllers().MapDefaultControllerRoute();`
+  - **Acceptance Criteria**:
+    - Live view page is accessible at `/gamemaps/{mapId}/live`
+    - Page authenticates using DM's existing JWT token
+    - SignalR connection established automatically on page load
+    - Page renders initial map state from snapshot API
+    - Real-time updates display without page refresh
+- **Dependencies**: `step-live-map-003`, `step-live-map-007`
+- **Estimated Scope**: Medium (includes frontend JavaScript)
 
-1. Navigate to the Data project directory
+### Step 9: Write Comprehensive Unit Tests for LiveMapService
+- **uniqueId**: `step-live-map-009`
+- **status**: `done`
+- **description**: Create full unit test suite for `LiveMapService` covering all broadcast methods, authorization checks, and edge cases. Follow existing test patterns with Moq and FluentAssertions.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Test: `BroadcastMapUpdateAsync()` with Live map calls Hub SendAsync
+    - Test: `BroadcastMapUpdateAsync()` with Draft map does NOT call Hub SendAsync
+    - Test: `BroadcastMapUpdateAsync()` with null map logs warning and returns
+    - Test: `SetMapPublicationStatusAsync()` with unauthorized user throws exception
+    - Test: `SetMapPublicationStatusAsync()` broadcasts status change event
+    - Test: `GetMapStateSnapshotAsync()` returns null for Draft maps
+    - Test: `GetMapStateSnapshotAsync()` returns full snapshot for Live maps
+    - Test: All methods handle cancellation tokens correctly
+    - Test: Broadcast methods log events at appropriate levels
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.UnitTests/Services/LiveMapServiceTests.cs`:
+       ```csharp
+       public class LiveMapServiceTests
+       {
+           private readonly Mock<IGameMapRepository> _mockMapRepository;
+           private readonly Mock<IHubContext<GameMapHub>> _mockHubContext;
+           private readonly Mock<IGameMapService> _mockGameMapService;
+           private readonly Mock<ILogger<LiveMapService>> _mockLogger;
+           private readonly LiveMapService _service;
 
-2. Create a new migration:
-```bash
-dotnet ef migrations add AddOAuthUserFields --project src/DnDMapBuilder.Data --startup-project src/DnDMapBuilder.Api
-```
+           public LiveMapServiceTests()
+           {
+               _mockMapRepository = new Mock<IGameMapRepository>();
+               _mockHubContext = new Mock<IHubContext<GameMapHub>>();
+               _mockGameMapService = new Mock<IGameMapService>();
+               _mockLogger = new Mock<ILogger<LiveMapService>>();
 
-3. Review the generated migration file to ensure it:
-   - Adds `OAuthProvider` column (nullable nvarchar)
-   - Adds `OAuthProviderId` column (nullable nvarchar)
-   - Adds `ProfilePictureUrl` column (nullable nvarchar)
-   - Adds `EmailVerified` column (bit, default false)
+               // Mock IHubContext setup
+               var mockClients = new Mock<IHubClients>();
+               var mockGroup = new Mock<IClientProxy>();
+               _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+               mockClients.Setup(c => c.Group(It.IsAny<string>())).Returns(mockGroup.Object);
 
-4. Apply the migration:
-```bash
-dotnet ef database update --project src/DnDMapBuilder.Data --startup-project src/DnDMapBuilder.Api
-```
+               _service = new LiveMapService(_mockMapRepository.Object, _mockHubContext.Object, _mockGameMapService.Object, _mockLogger.Object);
+           }
 
-5. Verify migration applied successfully
+           [Fact]
+           public async Task BroadcastMapUpdateAsync_WithLiveMap_CallsHubSendAsync()
+           {
+               // Arrange
+               var map = new GameMap { Id = "map1", PublicationStatus = PublicationStatus.Live, Name = "Test Map" };
+               _mockMapRepository.Setup(r => r.GetWithTokensAsync("map1", default)).ReturnsAsync(map);
 
----
+               // Act
+               await _service.BroadcastMapUpdateAsync("map1");
 
-### STEP-OAUTH-BE-004
+               // Assert
+               _mockHubContext.Verify(h => h.Clients.Group("map_map1").SendAsync("MapUpdated", It.IsAny<MapUpdatedEvent>(), default), Times.Once);
+           }
 
-**Status:** done
-**Task:** Create OAuth Configuration Settings
-**Files:** `src/DnDMapBuilder.Api/appsettings.json`, `src/DnDMapBuilder.Api/appsettings.Development.json`
+           // Additional tests...
+       }
+       ```
+    2. Follow existing test structure from `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.UnitTests/Services/AuthServiceTests.cs`
+  - **Acceptance Criteria**:
+    - All public methods have corresponding unit tests
+    - Test coverage > 90% for `LiveMapService`
+    - Tests use Arrange-Act-Assert pattern
+    - Mock verifications confirm Hub interactions
+    - FluentAssertions used for readable assertions
+- **Dependencies**: `step-live-map-005`
+- **Estimated Scope**: Medium
 
-**Instructions:**
+### Step 10: Write Integration Tests for SignalR Hub and Live Endpoints
+- **uniqueId**: `step-live-map-010`
+- **status**: `done`
+- **description**: Create integration tests validating end-to-end SignalR connection lifecycle, JWT authentication flow, and live endpoint behavior using WebApplicationFactory pattern.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Test: SignalR connection with valid JWT succeeds
+    - Test: SignalR connection without JWT returns 401
+    - Test: Client can join map group after authentication
+    - Test: Client receives MapUpdated event after joining group
+    - Test: Client does NOT receive events for other map groups
+    - Test: `PUT /api/v1/livemaps/{mapId}/status` triggers SignalR broadcast
+    - Test: `GET /api/v1/livemaps/{mapId}/snapshot` returns correct data for Live map
+    - Test: Multiple clients receive same broadcast event
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.IntegrationTests/Hubs/GameMapHubIntegrationTests.cs`:
+       ```csharp
+       public class GameMapHubIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+       {
+           private readonly WebApplicationFactory<Program> _factory;
 
-1. Add OAuth configuration section to appsettings.json:
+           [Fact]
+           public async Task SignalRConnection_WithValidJwt_Succeeds()
+           {
+               // Arrange
+               var client = _factory.CreateClient();
+               var token = await GetAuthTokenAsync(client);
+
+               // Act
+               var hubConnection = new HubConnectionBuilder()
+                   .WithUrl($"{_factory.Server.BaseAddress}hubs/gamemap?access_token={token}")
+                   .Build();
+
+               await hubConnection.StartAsync();
+
+               // Assert
+               hubConnection.State.Should().Be(HubConnectionState.Connected);
+
+               // Cleanup
+               await hubConnection.StopAsync();
+           }
+
+           // Additional tests...
+       }
+       ```
+    2. Follow pattern from existing integration tests in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.IntegrationTests/Controllers/HealthCheckIntegrationTests.cs`
+    3. Add `Microsoft.AspNetCore.SignalR.Client` package to IntegrationTests project for SignalR client
+  - **Acceptance Criteria**:
+    - All integration tests pass in isolated test database
+    - Tests clean up connections and resources
+    - JWT token generation helper method reusable across tests
+    - Tests validate both success and failure paths
+- **Dependencies**: `step-live-map-007`, `step-live-map-003`
+- **Estimated Scope**: Large
+
+### Step 11: Update Existing GameMapController to Support Publication Status
+- **uniqueId**: `step-live-map-011`
+- **status**: `done`
+- **description**: Modify `GameMapsController` to include `PublicationStatus` in responses and allow setting status during map creation/updates.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: `CreateMap()` accepts optional `PublicationStatus` parameter (defaults to Draft)
+    - Unit test: `UpdateMap()` can change `PublicationStatus`
+    - Unit test: `GetMap()` includes `PublicationStatus` in response
+    - Integration test: End-to-end map creation with `PublicationStatus.Live`
+  - **Implementation Guidelines**:
+    1. Update `CreateMapRequest` in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Contracts/Requests/CreateMapRequest.cs` to include optional `PublicationStatus PublicationStatus = PublicationStatus.Draft`
+    2. Update `UpdateMapRequest` in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Contracts/Requests/UpdateMapRequest.cs` to include `PublicationStatus PublicationStatus`
+    3. Update `GameMapService.CreateAsync()` and `UpdateAsync()` to handle `PublicationStatus`
+    4. Update controller tests to verify new field handling
+  - **Acceptance Criteria**:
+    - Existing API consumers not affected (backwards compatible)
+    - `PublicationStatus` serialized correctly in JSON responses
+    - Map creation defaults to `Draft` if not specified
+    - Update allows changing status (also broadcasts if changed to Live)
+- **Dependencies**: `step-live-map-001`
+- **Estimated Scope**: Small
+
+### Step 12: Add Logging and Telemetry for Live Map Operations
+- **uniqueId**: `step-live-map-012`
+- **status**: `done`
+- **description**: Instrument `LiveMapService` and `GameMapHub` with structured logging and telemetry for monitoring connection counts, broadcast performance, and error rates.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: Verify log messages emitted at correct levels (Info, Warning, Error)
+    - Unit test: Verify telemetry counters increment on events (map updates, connections)
+    - Integration test: Logs written to configured sink (can verify via test output)
+  - **Implementation Guidelines**:
+    1. Add structured logging to `LiveMapService` methods:
+       ```csharp
+       _logger.LogInformation("Broadcasting map update for map {MapId}, status {Status}", mapId, map.PublicationStatus);
+       _logger.LogWarning("Attempted broadcast for Draft map {MapId}, skipping", mapId);
+       ```
+    2. Add logging to `GameMapHub` connection lifecycle:
+       ```csharp
+       _logger.LogInformation("User {UserId} joined map group {MapId} (ConnectionId: {ConnectionId})", userId, mapId, Context.ConnectionId);
+       _logger.LogError(ex, "Error in GameMapHub.JoinMapGroup for map {MapId}", mapId);
+       ```
+    3. Consider adding custom metrics/counters using existing telemetry infrastructure in `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Infrastructure/Telemetry/TelemetryService.cs`
+  - **Acceptance Criteria**:
+    - All significant operations logged with context (userId, mapId, connectionId)
+    - Errors logged with exception details
+    - Logs follow structured format for easy querying
+    - No sensitive data (tokens, passwords) in logs
+- **Dependencies**: `step-live-map-005`, `step-live-map-003`
+- **Estimated Scope**: Small
+
+### Step 13: Performance Optimization - Implement Broadcast Throttling
+- **uniqueId**: `step-live-map-013`
+- **status**: `done`
+- **description**: Add throttling/debouncing to prevent excessive SignalR broadcasts when DM makes rapid consecutive updates (e.g., dragging multiple tokens). Use sliding window to batch updates.
+- **TDD Approach**:
+  - **Test Cases**:
+    - Unit test: Rapid consecutive calls to `BroadcastTokenMovedAsync()` result in single broadcast
+    - Unit test: Broadcasts after throttle window trigger immediately
+    - Unit test: Different maps don't interfere with each other's throttle windows
+    - Integration test: Token drag with 10 position updates results in ~2-3 broadcasts (not 10)
+  - **Implementation Guidelines**:
+    1. Use `System.Threading.Channels` or `System.Reactive` for buffering events
+    2. Add configuration for throttle window: `"LiveMap:ThrottleWindowMs": 100` in appsettings.json
+    3. Implement per-map throttle state in `LiveMapService`:
+       ```csharp
+       private readonly ConcurrentDictionary<string, SemaphoreSlim> _throttleLocks = new();
+
+       public async Task BroadcastTokenMovedAsync(string mapId, string tokenInstanceId, int x, int y, CancellationToken cancellationToken)
+       {
+           var throttleLock = _throttleLocks.GetOrAdd(mapId, _ => new SemaphoreSlim(1, 1));
+           if (!await throttleLock.WaitAsync(0)) return; // Skip if already broadcasting
+
+           try
+           {
+               // Broadcast logic
+               await Task.Delay(100, cancellationToken); // Throttle window
+           }
+           finally
+           {
+               throttleLock.Release();
+           }
+       }
+       ```
+    4. Document throttling behavior for frontend team
+  - **Acceptance Criteria**:
+    - Rapid updates don't overwhelm SignalR connection
+    - Latency remains under 200ms for typical operations
+    - Memory usage stable under load (no leak from throttle state)
+    - Throttle window configurable via appsettings
+- **Dependencies**: `step-live-map-005`
+- **Estimated Scope**: Medium
+
+### Step 14: Create Frontend API Documentation
+- **uniqueId**: `step-live-map-014`
+- **status**: `done`
+- **description**: Generate comprehensive markdown documentation for frontend developers covering REST endpoints, SignalR hub methods, DTOs, authentication flow, and example code snippets.
+- **TDD Approach**:
+  - **Test Cases**: N/A (documentation task)
+  - **Implementation Guidelines**:
+    1. Create `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/docs/LIVE_MAP_API.md` with following sections:
+       - **Overview**: Feature description and architecture
+       - **Authentication**: JWT token usage in REST and SignalR
+       - **REST Endpoints**:
+         - `PUT /api/v1/livemaps/{mapId}/status` - Set publication status
+         - `GET /api/v1/livemaps/{mapId}/snapshot` - Get current map state
+       - **SignalR Hub**: `/hubs/gamemap`
+         - Connection setup with JWT in query string
+         - Hub methods: `JoinMapGroup(mapId)`, `LeaveMapGroup(mapId)`
+         - Server-to-client events: `MapUpdated`, `TokenMoved`, `TokenAdded`, `TokenRemoved`, `MapStatusChanged`
+       - **DTOs and Data Structures**:
+         - `GameMapDto` schema
+         - `MapUpdatedEvent` schema
+         - `TokenMovedEvent` schema
+         - `MapStateSnapshot` schema
+         - `PublicationStatus` enum values
+       - **Code Examples**:
+         - JavaScript: Establishing SignalR connection
+         - JavaScript: Subscribing to map updates
+         - JavaScript: Fetching map snapshot on initial load
+         - cURL: Setting map publication status
+       - **Error Handling**: Common error codes and messages
+       - **Performance Notes**: Throttling behavior, recommended update frequencies
+    2. Include OpenAPI/Swagger annotations in controllers for auto-generated docs
+    3. Add Mermaid diagram showing sequence flow: DM edits map → Service broadcasts → SignalR Hub → Live view receives update
+  - **Acceptance Criteria**:
+    - Documentation is complete, accurate, and matches implementation
+    - All endpoints documented with request/response examples
+    - SignalR connection setup clearly explained with code
+    - DTOs include property types and descriptions
+    - Example code is copy-paste ready
+    - Mermaid diagrams render correctly in markdown viewers
+- **Dependencies**: `step-live-map-001` through `step-live-map-013`
+- **Estimated Scope**: Small
+
+## Testing Strategy
+
+### Unit Testing
+- **Framework**: xUnit with Moq for mocking, FluentAssertions for assertions
+- **Target Coverage**: > 85% code coverage for new services and controllers
+- **Key Focus Areas**:
+  - Service layer business logic (`LiveMapService`, updated `GameMapService`)
+  - Authorization checks (ownership validation)
+  - Hub method behavior (group management, disconnection handling)
+  - Event construction and serialization
+
+### Integration Testing
+- **Framework**: xUnit with `WebApplicationFactory<Program>`
+- **Test Database**: EF Core In-Memory provider for isolated tests
+- **Key Scenarios**:
+  - End-to-end SignalR connection with JWT authentication
+  - REST API calls triggering SignalR broadcasts
+  - Multiple clients receiving broadcasts in correct groups
+  - Database persistence of `PublicationStatus` changes
+
+### Manual Testing Checklist
+- DM can set map to Live and see it broadcast
+- Live view page displays map on separate screen/browser tab
+- Token movements in main app update live view in real-time (< 500ms latency)
+- Multiple maps can be Live simultaneously without cross-contamination
+- Disconnecting live view doesn't affect main editing session
+- Draft maps don't broadcast to any live views
+
+## Risk Mitigation
+
+### Risk 1: SignalR Connection Stability
+- **Mitigation**: Implement automatic reconnection logic in client JavaScript with exponential backoff
+- **Monitoring**: Log connection/disconnection events with userId and mapId for troubleshooting
+- **Fallback**: If SignalR fails, frontend can poll snapshot endpoint every 2-3 seconds
+
+### Risk 2: Excessive Broadcast Traffic
+- **Mitigation**: Implement throttling (Step 13) to limit broadcasts to ~10-20 per second per map
+- **Monitoring**: Add telemetry to track broadcast frequency and payload sizes
+- **Optimization**: Only broadcast changed properties (delta updates) instead of full map state
+
+### Risk 3: Memory Leaks from SignalR Groups
+- **Mitigation**: Ensure `OnDisconnectedAsync` properly removes connections from groups
+- **Testing**: Integration test verifying group cleanup after 100+ connect/disconnect cycles
+- **Monitoring**: Track active connection count metric in production
+
+### Risk 4: JWT Token Expiration During Long Sessions
+- **Mitigation**: Frontend should refresh JWT before expiration and reconnect SignalR with new token
+- **Implementation**: Add `RefreshToken` endpoint or extend token expiration for live sessions
+- **UX**: Show warning to DM when token is about to expire (e.g., 5 minutes before)
+
+### Risk 5: Race Conditions with Rapid Updates
+- **Mitigation**: Use CancellationToken throughout async pipeline to handle overlapping requests
+- **Testing**: Unit tests with concurrent calls to broadcast methods
+- **Database**: Use optimistic concurrency in EF Core for `GameMap` updates (add `RowVersion` column)
+
+### Risk 6: Cross-Browser Compatibility
+- **Mitigation**: Use SignalR's built-in fallback transports (WebSockets → Server-Sent Events → Long Polling)
+- **Testing**: Test live view in Chrome, Firefox, Safari, Edge
+- **Documentation**: Document minimum browser versions required for WebSocket support
+
+### Risk 7: Authorization Bypass
+- **Mitigation**: Double-check authorization at both REST endpoint and SignalR Hub method level
+- **Testing**: Security-focused tests attempting to access maps without ownership
+- **Code Review**: Ensure all Hub methods call authorization service before group operations
+
+## Database Migration Notes
+
+### Migration: AddPublicationStatusToGameMap
+- **Backwards Compatibility**: Existing maps will default to `PublicationStatus.Draft` (enum value 0)
+- **Rollback Plan**: If migration causes issues, add `Down()` method to remove column
+- **Data Migration**: No data transformation needed; default value is safe for existing records
+- **Production Deployment**: Apply migration during low-traffic window; zero downtime expected
+
+## Configuration Requirements
+
+Add to `/Users/mikedeiktakis/RiderProjects/DnDMapbuilder-Api/src/DnDMapBuilder.Api/appsettings.json`:
 
 ```json
 {
-  "OAuth": {
-    "Google": {
-      "ClientId": "",
-      "ClientSecret": ""
-    },
-    "Apple": {
-      "ClientId": "",
-      "TeamId": "",
-      "KeyId": "",
-      "PrivateKey": ""
-    },
-    "RedirectUri": "https://localhost:5001/api/v1/auth/oauth/callback",
-    "FrontendRedirectUri": "https://localhost:3000/auth/callback"
+  "LiveMap": {
+    "ThrottleWindowMs": 100,
+    "MaxConnectionsPerMap": 50,
+    "EnableDetailedErrors": false
+  },
+  "CorsSettings": {
+    "AllowedOrigins": ["http://localhost:3000", "https://yourdomain.com"]
   }
 }
 ```
 
-2. Create a configuration class in `src/DnDMapBuilder.Contracts/Configuration/OAuthSettings.cs`:
-
-```csharp
-namespace DnDMapBuilder.Contracts.Configuration;
-
-public class OAuthSettings
-{
-    public GoogleSettings Google { get; set; } = new();
-    public AppleSettings Apple { get; set; } = new();
-    public string RedirectUri { get; set; } = string.Empty;
-    public string FrontendRedirectUri { get; set; } = string.Empty;
-}
-
-public class GoogleSettings
-{
-    public string ClientId { get; set; } = string.Empty;
-    public string ClientSecret { get; set; } = string.Empty;
-}
-
-public class AppleSettings
-{
-    public string ClientId { get; set; } = string.Empty;
-    public string TeamId { get; set; } = string.Empty;
-    public string KeyId { get; set; } = string.Empty;
-    public string PrivateKey { get; set; } = string.Empty;
-}
-```
-
-3. Register configuration in Program.cs:
-
-```csharp
-builder.Services.Configure<OAuthSettings>(builder.Configuration.GetSection("OAuth"));
-```
-
-4. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-005
-
-**Status:** done
-**Task:** Create OAuth DTOs and Contracts
-**Files:** `src/DnDMapBuilder.Contracts/Requests/`, `src/DnDMapBuilder.Contracts/Responses/`
-
-**Instructions:**
-
-1. Create `OAuthLoginRequest.cs` in Requests folder:
-
-```csharp
-namespace DnDMapBuilder.Contracts.Requests;
-
-/// <summary>
-/// Request for OAuth-based login/registration
-/// </summary>
-public record OAuthLoginRequest(
-    /// <summary>
-    /// The OAuth provider ("google" or "apple")
-    /// </summary>
-    string Provider,
-
-    /// <summary>
-    /// The authorization code received from OAuth provider
-    /// </summary>
-    string Code,
-
-    /// <summary>
-    /// The redirect URI used in the OAuth flow (for validation)
-    /// </summary>
-    string RedirectUri
-);
-```
-
-2. Create `OAuthTokenRequest.cs` for token-based flow (mobile/SPA):
-
-```csharp
-namespace DnDMapBuilder.Contracts.Requests;
-
-/// <summary>
-/// Request for OAuth login using ID token (for mobile/SPA clients)
-/// </summary>
-public record OAuthTokenRequest(
-    /// <summary>
-    /// The OAuth provider ("google" or "apple")
-    /// </summary>
-    string Provider,
-
-    /// <summary>
-    /// The ID token received from OAuth provider
-    /// </summary>
-    string IdToken
-);
-```
-
-3. Create `OAuthUrlResponse.cs` in Responses folder:
-
-```csharp
-namespace DnDMapBuilder.Contracts.Responses;
-
-/// <summary>
-/// Response containing OAuth authorization URL
-/// </summary>
-public record OAuthUrlResponse(
-    /// <summary>
-    /// The URL to redirect the user to for OAuth authentication
-    /// </summary>
-    string AuthorizationUrl,
-
-    /// <summary>
-    /// State parameter for CSRF protection
-    /// </summary>
-    string State
-);
-```
-
-4. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-006
-
-**Status:** done
-**Task:** Create IOAuthService Interface
-**Files:** `src/DnDMapBuilder.Application/Interfaces/IOAuthService.cs`
-
-**Instructions:**
-
-1. Create a new interface file `IOAuthService.cs`:
-
-```csharp
-using DnDMapBuilder.Contracts.Requests;
-using DnDMapBuilder.Contracts.Responses;
-
-namespace DnDMapBuilder.Application.Interfaces;
-
-/// <summary>
-/// Service interface for OAuth authentication operations
-/// </summary>
-public interface IOAuthService
-{
-    /// <summary>
-    /// Generates the OAuth authorization URL for the specified provider
-    /// </summary>
-    /// <param name="provider">OAuth provider (google or apple)</param>
-    /// <param name="redirectUri">The redirect URI after authentication</param>
-    /// <returns>Authorization URL and state parameter</returns>
-    Task<OAuthUrlResponse> GetAuthorizationUrlAsync(string provider, string redirectUri);
-
-    /// <summary>
-    /// Handles OAuth callback and exchanges code for tokens
-    /// </summary>
-    /// <param name="request">OAuth login request with authorization code</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Auth response with JWT token or null if failed</returns>
-    Task<AuthResponse?> HandleOAuthCallbackAsync(OAuthLoginRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Validates an ID token and authenticates the user (for mobile/SPA clients)
-    /// </summary>
-    /// <param name="request">OAuth token request with ID token</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Auth response with JWT token or null if failed</returns>
-    Task<AuthResponse?> ValidateIdTokenAsync(OAuthTokenRequest request, CancellationToken cancellationToken = default);
-}
-```
-
-2. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-007
-
-**Status:** done
-**Task:** Implement Google OAuth Token Validation
-**Files:** `src/DnDMapBuilder.Application/Services/GoogleOAuthService.cs`
-
-**Instructions:**
-
-1. Create `GoogleOAuthService.cs`:
-
-```csharp
-using System.Text.Json;
-using DnDMapBuilder.Application.Interfaces;
-using DnDMapBuilder.Contracts.Configuration;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
-namespace DnDMapBuilder.Application.Services;
-
-/// <summary>
-/// Service for Google OAuth token validation and user info retrieval
-/// </summary>
-public class GoogleOAuthService
-{
-    private readonly HttpClient _httpClient;
-    private readonly OAuthSettings _settings;
-    private readonly ILogger<GoogleOAuthService> _logger;
-
-    private const string TokenInfoEndpoint = "https://oauth2.googleapis.com/tokeninfo";
-    private const string UserInfoEndpoint = "https://www.googleapis.com/oauth2/v3/userinfo";
-    private const string TokenEndpoint = "https://oauth2.googleapis.com/token";
-    private const string AuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
-
-    public GoogleOAuthService(
-        HttpClient httpClient,
-        IOptions<OAuthSettings> settings,
-        ILogger<GoogleOAuthService> logger)
-    {
-        _httpClient = httpClient;
-        _settings = settings.Value;
-        _logger = logger;
-    }
-
-    /// <summary>
-    /// Generates Google OAuth authorization URL
-    /// </summary>
-    public string GetAuthorizationUrl(string redirectUri, string state)
-    {
-        var scopes = Uri.EscapeDataString("openid email profile");
-        return $"{AuthEndpoint}?client_id={_settings.Google.ClientId}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope={scopes}&state={state}&access_type=offline&prompt=consent";
-    }
-
-    /// <summary>
-    /// Exchanges authorization code for tokens
-    /// </summary>
-    public async Task<GoogleTokenResponse?> ExchangeCodeForTokensAsync(string code, string redirectUri)
-    {
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["code"] = code,
-            ["client_id"] = _settings.Google.ClientId,
-            ["client_secret"] = _settings.Google.ClientSecret,
-            ["redirect_uri"] = redirectUri,
-            ["grant_type"] = "authorization_code"
-        });
-
-        var response = await _httpClient.PostAsync(TokenEndpoint, content);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Failed to exchange Google auth code: {Status}", response.StatusCode);
-            return null;
-        }
-
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GoogleTokenResponse>(json);
-    }
-
-    /// <summary>
-    /// Validates an ID token and returns user info
-    /// </summary>
-    public async Task<GoogleUserInfo?> ValidateIdTokenAsync(string idToken)
-    {
-        var response = await _httpClient.GetAsync($"{TokenInfoEndpoint}?id_token={idToken}");
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Failed to validate Google ID token: {Status}", response.StatusCode);
-            return null;
-        }
-
-        var json = await response.Content.ReadAsStringAsync();
-        var tokenInfo = JsonSerializer.Deserialize<GoogleTokenInfo>(json);
-
-        // Verify the token is for our app
-        if (tokenInfo?.Aud != _settings.Google.ClientId)
-        {
-            _logger.LogError("Google ID token audience mismatch");
-            return null;
-        }
-
-        return new GoogleUserInfo
-        {
-            Id = tokenInfo.Sub,
-            Email = tokenInfo.Email,
-            EmailVerified = tokenInfo.EmailVerified,
-            Name = tokenInfo.Name,
-            Picture = tokenInfo.Picture
-        };
-    }
-
-    /// <summary>
-    /// Gets user info using access token
-    /// </summary>
-    public async Task<GoogleUserInfo?> GetUserInfoAsync(string accessToken)
-    {
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-
-        var response = await _httpClient.GetAsync(UserInfoEndpoint);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Failed to get Google user info: {Status}", response.StatusCode);
-            return null;
-        }
-
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<GoogleUserInfo>(json);
-    }
-}
-
-public class GoogleTokenResponse
-{
-    [System.Text.Json.Serialization.JsonPropertyName("access_token")]
-    public string AccessToken { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("id_token")]
-    public string IdToken { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
-    public string? RefreshToken { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
-    public int ExpiresIn { get; set; }
-}
-
-public class GoogleTokenInfo
-{
-    [System.Text.Json.Serialization.JsonPropertyName("sub")]
-    public string Sub { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("email_verified")]
-    public bool EmailVerified { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("picture")]
-    public string? Picture { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("aud")]
-    public string Aud { get; set; } = string.Empty;
-}
-
-public class GoogleUserInfo
-{
-    [System.Text.Json.Serialization.JsonPropertyName("sub")]
-    public string Id { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("email_verified")]
-    public bool EmailVerified { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("name")]
-    public string? Name { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("picture")]
-    public string? Picture { get; set; }
-}
-```
-
-2. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-008
-
-**Status:** done
-**Task:** Implement Apple OAuth Token Validation
-**Files:** `src/DnDMapBuilder.Application/Services/AppleOAuthService.cs`
-
-**Instructions:**
-
-1. Create `AppleOAuthService.cs`:
-
-```csharp
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text.Json;
-using DnDMapBuilder.Contracts.Configuration;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-
-namespace DnDMapBuilder.Application.Services;
-
-/// <summary>
-/// Service for Apple OAuth token validation and user info retrieval
-/// </summary>
-public class AppleOAuthService
-{
-    private readonly HttpClient _httpClient;
-    private readonly OAuthSettings _settings;
-    private readonly ILogger<AppleOAuthService> _logger;
-
-    private const string AuthEndpoint = "https://appleid.apple.com/auth/authorize";
-    private const string TokenEndpoint = "https://appleid.apple.com/auth/token";
-    private const string KeysEndpoint = "https://appleid.apple.com/auth/keys";
-
-    public AppleOAuthService(
-        HttpClient httpClient,
-        IOptions<OAuthSettings> settings,
-        ILogger<AppleOAuthService> logger)
-    {
-        _httpClient = httpClient;
-        _settings = settings.Value;
-        _logger = logger;
-    }
-
-    /// <summary>
-    /// Generates Apple OAuth authorization URL
-    /// </summary>
-    public string GetAuthorizationUrl(string redirectUri, string state)
-    {
-        var scopes = Uri.EscapeDataString("name email");
-        return $"{AuthEndpoint}?client_id={_settings.Apple.ClientId}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope={scopes}&state={state}&response_mode=form_post";
-    }
-
-    /// <summary>
-    /// Exchanges authorization code for tokens
-    /// </summary>
-    public async Task<AppleTokenResponse?> ExchangeCodeForTokensAsync(string code, string redirectUri)
-    {
-        var clientSecret = GenerateClientSecret();
-
-        var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["code"] = code,
-            ["client_id"] = _settings.Apple.ClientId,
-            ["client_secret"] = clientSecret,
-            ["redirect_uri"] = redirectUri,
-            ["grant_type"] = "authorization_code"
-        });
-
-        var response = await _httpClient.PostAsync(TokenEndpoint, content);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("Failed to exchange Apple auth code: {Status}", response.StatusCode);
-            return null;
-        }
-
-        var json = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<AppleTokenResponse>(json);
-    }
-
-    /// <summary>
-    /// Validates an Apple ID token and returns user info
-    /// </summary>
-    public async Task<AppleUserInfo?> ValidateIdTokenAsync(string idToken)
-    {
-        try
-        {
-            // Get Apple's public keys
-            var keysResponse = await _httpClient.GetStringAsync(KeysEndpoint);
-            var keys = JsonSerializer.Deserialize<AppleKeysResponse>(keysResponse);
-
-            if (keys?.Keys == null || keys.Keys.Count == 0)
-            {
-                _logger.LogError("Failed to get Apple public keys");
-                return null;
-            }
-
-            var handler = new JwtSecurityTokenHandler();
-            var jwtToken = handler.ReadJwtToken(idToken);
-
-            // Find the key that matches the token's kid
-            var kid = jwtToken.Header.Kid;
-            var key = keys.Keys.FirstOrDefault(k => k.Kid == kid);
-
-            if (key == null)
-            {
-                _logger.LogError("No matching Apple key found for kid: {Kid}", kid);
-                return null;
-            }
-
-            var rsa = new RSACryptoServiceProvider();
-            rsa.ImportParameters(new RSAParameters
-            {
-                Modulus = Base64UrlEncoder.DecodeBytes(key.N),
-                Exponent = Base64UrlEncoder.DecodeBytes(key.E)
-            });
-
-            var validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidIssuer = "https://appleid.apple.com",
-                ValidateAudience = true,
-                ValidAudience = _settings.Apple.ClientId,
-                ValidateLifetime = true,
-                IssuerSigningKey = new RsaSecurityKey(rsa)
-            };
-
-            var principal = handler.ValidateToken(idToken, validationParameters, out _);
-
-            return new AppleUserInfo
-            {
-                Id = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty,
-                Email = principal.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty,
-                EmailVerified = true // Apple verifies emails
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to validate Apple ID token");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Generates Apple client secret (JWT signed with private key)
-    /// </summary>
-    private string GenerateClientSecret()
-    {
-        var now = DateTime.UtcNow;
-        var ecdsa = ECDsa.Create();
-        ecdsa.ImportPkcs8PrivateKey(Convert.FromBase64String(_settings.Apple.PrivateKey), out _);
-
-        var signingCredentials = new SigningCredentials(
-            new ECDsaSecurityKey(ecdsa) { KeyId = _settings.Apple.KeyId },
-            SecurityAlgorithms.EcdsaSha256);
-
-        var claims = new[]
-        {
-            new Claim("iss", _settings.Apple.TeamId),
-            new Claim("iat", ((long)(now - DateTime.UnixEpoch).TotalSeconds).ToString()),
-            new Claim("exp", ((long)(now.AddMonths(6) - DateTime.UnixEpoch).TotalSeconds).ToString()),
-            new Claim("aud", "https://appleid.apple.com"),
-            new Claim("sub", _settings.Apple.ClientId)
-        };
-
-        var token = new JwtSecurityToken(
-            claims: claims,
-            signingCredentials: signingCredentials);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-}
-
-public class AppleTokenResponse
-{
-    [System.Text.Json.Serialization.JsonPropertyName("access_token")]
-    public string AccessToken { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("id_token")]
-    public string IdToken { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("refresh_token")]
-    public string? RefreshToken { get; set; }
-
-    [System.Text.Json.Serialization.JsonPropertyName("expires_in")]
-    public int ExpiresIn { get; set; }
-}
-
-public class AppleUserInfo
-{
-    public string Id { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public bool EmailVerified { get; set; }
-    public string? Name { get; set; }
-}
-
-public class AppleKeysResponse
-{
-    [System.Text.Json.Serialization.JsonPropertyName("keys")]
-    public List<AppleKey> Keys { get; set; } = new();
-}
-
-public class AppleKey
-{
-    [System.Text.Json.Serialization.JsonPropertyName("kid")]
-    public string Kid { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("n")]
-    public string N { get; set; } = string.Empty;
-
-    [System.Text.Json.Serialization.JsonPropertyName("e")]
-    public string E { get; set; } = string.Empty;
-}
-```
-
-2. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-009
-
-**Status:** done
-**Task:** Implement Main OAuthService
-**Files:** `src/DnDMapBuilder.Application/Services/OAuthService.cs`
-
-**Instructions:**
-
-1. Create `OAuthService.cs` that implements `IOAuthService`:
-
-```csharp
-using DnDMapBuilder.Application.Interfaces;
-using DnDMapBuilder.Application.Mappings;
-using DnDMapBuilder.Contracts.Configuration;
-using DnDMapBuilder.Contracts.Requests;
-using DnDMapBuilder.Contracts.Responses;
-using DnDMapBuilder.Data.Entities;
-using DnDMapBuilder.Data.Repositories.Interfaces;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
-namespace DnDMapBuilder.Application.Services;
-
-/// <summary>
-/// Main OAuth service that coordinates authentication across providers
-/// </summary>
-public class OAuthService : IOAuthService
-{
-    private readonly GoogleOAuthService _googleService;
-    private readonly AppleOAuthService _appleService;
-    private readonly IUserRepository _userRepository;
-    private readonly IJwtService _jwtService;
-    private readonly OAuthSettings _settings;
-    private readonly ILogger<OAuthService> _logger;
-
-    public OAuthService(
-        GoogleOAuthService googleService,
-        AppleOAuthService appleService,
-        IUserRepository userRepository,
-        IJwtService jwtService,
-        IOptions<OAuthSettings> settings,
-        ILogger<OAuthService> logger)
-    {
-        _googleService = googleService;
-        _appleService = appleService;
-        _userRepository = userRepository;
-        _jwtService = jwtService;
-        _settings = settings.Value;
-        _logger = logger;
-    }
-
-    /// <inheritdoc />
-    public Task<OAuthUrlResponse> GetAuthorizationUrlAsync(string provider, string redirectUri)
-    {
-        var state = GenerateState();
-
-        var authUrl = provider.ToLowerInvariant() switch
-        {
-            "google" => _googleService.GetAuthorizationUrl(redirectUri, state),
-            "apple" => _appleService.GetAuthorizationUrl(redirectUri, state),
-            _ => throw new ArgumentException($"Unsupported OAuth provider: {provider}")
-        };
-
-        return Task.FromResult(new OAuthUrlResponse(authUrl, state));
-    }
-
-    /// <inheritdoc />
-    public async Task<AuthResponse?> HandleOAuthCallbackAsync(OAuthLoginRequest request, CancellationToken cancellationToken = default)
-    {
-        return request.Provider.ToLowerInvariant() switch
-        {
-            "google" => await HandleGoogleCallbackAsync(request.Code, request.RedirectUri, cancellationToken),
-            "apple" => await HandleAppleCallbackAsync(request.Code, request.RedirectUri, cancellationToken),
-            _ => throw new ArgumentException($"Unsupported OAuth provider: {request.Provider}")
-        };
-    }
-
-    /// <inheritdoc />
-    public async Task<AuthResponse?> ValidateIdTokenAsync(OAuthTokenRequest request, CancellationToken cancellationToken = default)
-    {
-        return request.Provider.ToLowerInvariant() switch
-        {
-            "google" => await ValidateGoogleIdTokenAsync(request.IdToken, cancellationToken),
-            "apple" => await ValidateAppleIdTokenAsync(request.IdToken, cancellationToken),
-            _ => throw new ArgumentException($"Unsupported OAuth provider: {request.Provider}")
-        };
-    }
-
-    private async Task<AuthResponse?> HandleGoogleCallbackAsync(string code, string redirectUri, CancellationToken cancellationToken)
-    {
-        var tokens = await _googleService.ExchangeCodeForTokensAsync(code, redirectUri);
-        if (tokens == null) return null;
-
-        var userInfo = await _googleService.ValidateIdTokenAsync(tokens.IdToken);
-        if (userInfo == null) return null;
-
-        return await CreateOrUpdateUserAndGenerateTokenAsync("google", userInfo.Id, userInfo.Email, userInfo.Name, userInfo.Picture, userInfo.EmailVerified, cancellationToken);
-    }
-
-    private async Task<AuthResponse?> HandleAppleCallbackAsync(string code, string redirectUri, CancellationToken cancellationToken)
-    {
-        var tokens = await _appleService.ExchangeCodeForTokensAsync(code, redirectUri);
-        if (tokens == null) return null;
-
-        var userInfo = await _appleService.ValidateIdTokenAsync(tokens.IdToken);
-        if (userInfo == null) return null;
-
-        return await CreateOrUpdateUserAndGenerateTokenAsync("apple", userInfo.Id, userInfo.Email, userInfo.Name, null, userInfo.EmailVerified, cancellationToken);
-    }
-
-    private async Task<AuthResponse?> ValidateGoogleIdTokenAsync(string idToken, CancellationToken cancellationToken)
-    {
-        var userInfo = await _googleService.ValidateIdTokenAsync(idToken);
-        if (userInfo == null) return null;
-
-        return await CreateOrUpdateUserAndGenerateTokenAsync("google", userInfo.Id, userInfo.Email, userInfo.Name, userInfo.Picture, userInfo.EmailVerified, cancellationToken);
-    }
-
-    private async Task<AuthResponse?> ValidateAppleIdTokenAsync(string idToken, CancellationToken cancellationToken)
-    {
-        var userInfo = await _appleService.ValidateIdTokenAsync(idToken);
-        if (userInfo == null) return null;
-
-        return await CreateOrUpdateUserAndGenerateTokenAsync("apple", userInfo.Id, userInfo.Email, userInfo.Name, null, userInfo.EmailVerified, cancellationToken);
-    }
-
-    private async Task<AuthResponse?> CreateOrUpdateUserAndGenerateTokenAsync(
-        string provider,
-        string providerId,
-        string email,
-        string? name,
-        string? picture,
-        bool emailVerified,
-        CancellationToken cancellationToken)
-    {
-        // Try to find existing user by OAuth provider ID
-        var user = await _userRepository.GetByOAuthProviderAsync(provider, providerId, cancellationToken);
-
-        // If not found, try to find by email
-        if (user == null)
-        {
-            user = await _userRepository.GetByEmailAsync(email, cancellationToken);
-
-            if (user != null)
-            {
-                // Link OAuth provider to existing account
-                user.OAuthProvider = provider;
-                user.OAuthProviderId = providerId;
-                user.ProfilePictureUrl = picture;
-                user.EmailVerified = emailVerified;
-                user.UpdatedAt = DateTime.UtcNow;
-                await _userRepository.UpdateAsync(user, cancellationToken);
-            }
-        }
-
-        // Create new user if not found
-        if (user == null)
-        {
-            user = new User
-            {
-                Id = Guid.NewGuid().ToString(),
-                Username = name ?? email.Split('@')[0],
-                Email = email,
-                PasswordHash = string.Empty, // OAuth users don't have passwords
-                Role = "user",
-                Status = "approved", // OAuth users are auto-approved
-                OAuthProvider = provider,
-                OAuthProviderId = providerId,
-                ProfilePictureUrl = picture,
-                EmailVerified = emailVerified,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            await _userRepository.AddAsync(user, cancellationToken);
-        }
-
-        // Check if user is approved (may have been rejected previously)
-        if (user.Status != "approved")
-        {
-            _logger.LogWarning("OAuth user {Email} attempted login but status is {Status}", email, user.Status);
-            return null;
-        }
-
-        // Generate JWT token
-        var token = _jwtService.GenerateToken(user);
-        var userDto = user.ToDto();
-
-        return new AuthResponse(token, userDto.Id, userDto.Username, userDto.Email, userDto.Role, userDto.Status);
-    }
-
-    private static string GenerateState()
-    {
-        var bytes = new byte[32];
-        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
-        rng.GetBytes(bytes);
-        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
-    }
-}
-```
-
-2. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-010
-
-**Status:** done
-**Task:** Update IUserRepository for OAuth Queries
-**Files:** `src/DnDMapBuilder.Data/Repositories/Interfaces/IUserRepository.cs`, `src/DnDMapBuilder.Data/Repositories/UserRepository.cs`
-
-**Instructions:**
-
-1. Add new method to `IUserRepository.cs`:
-
-```csharp
-/// <summary>
-/// Gets a user by OAuth provider and provider-specific ID.
-/// </summary>
-/// <param name="provider">OAuth provider name (google, apple)</param>
-/// <param name="providerId">Provider-specific user ID</param>
-/// <param name="cancellationToken">Cancellation token</param>
-/// <returns>The user or null if not found</returns>
-Task<User?> GetByOAuthProviderAsync(string provider, string providerId, CancellationToken cancellationToken = default);
-```
-
-2. Implement in `UserRepository.cs`:
-
-```csharp
-public async Task<User?> GetByOAuthProviderAsync(string provider, string providerId, CancellationToken cancellationToken = default)
-{
-    return await _dbSet.AsNoTracking()
-        .FirstOrDefaultAsync(u => u.OAuthProvider == provider && u.OAuthProviderId == providerId, cancellationToken);
-}
-```
-
-3. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-011
-
-**Status:** done
-**Task:** Add OAuth Endpoints to AuthController
-**Files:** `src/DnDMapBuilder.Api/Controllers/AuthController.cs`
-
-**Instructions:**
-
-1. Read the current AuthController.cs file
-
-2. Add IOAuthService dependency injection to constructor:
-
-```csharp
-private readonly IOAuthService _oAuthService;
-
-public AuthController(IAuthService authService, IUserManagementService userManagementService, IOAuthService oAuthService)
-{
-    _authService = authService;
-    _userManagementService = userManagementService;
-    _oAuthService = oAuthService;
-}
-```
-
-3. Add OAuth endpoints:
-
-```csharp
-/// <summary>
-/// Get OAuth authorization URL for the specified provider
-/// </summary>
-[HttpGet("oauth/{provider}/url")]
-public async Task<ActionResult<ApiResponse<OAuthUrlResponse>>> GetOAuthUrl(string provider, [FromQuery] string? redirectUri)
-{
-    try
-    {
-        var effectiveRedirectUri = redirectUri ?? $"{Request.Scheme}://{Request.Host}/api/v1/auth/oauth/callback";
-        var response = await _oAuthService.GetAuthorizationUrlAsync(provider, effectiveRedirectUri);
-        return Ok(new ApiResponse<OAuthUrlResponse>(true, response, $"{provider} authorization URL generated."));
-    }
-    catch (ArgumentException ex)
-    {
-        return BadRequest(new ApiResponse<OAuthUrlResponse>(false, null, ex.Message));
-    }
-}
-
-/// <summary>
-/// Handle OAuth callback with authorization code
-/// </summary>
-[HttpPost("oauth/callback")]
-public async Task<ActionResult<ApiResponse<AuthResponse>>> OAuthCallback([FromBody] OAuthLoginRequest request, CancellationToken cancellationToken)
-{
-    try
-    {
-        var result = await _oAuthService.HandleOAuthCallbackAsync(request, cancellationToken);
-
-        if (result == null)
-        {
-            return Unauthorized(new ApiResponse<AuthResponse>(false, null, "OAuth authentication failed."));
-        }
-
-        return Ok(new ApiResponse<AuthResponse>(true, result, "OAuth login successful."));
-    }
-    catch (ArgumentException ex)
-    {
-        return BadRequest(new ApiResponse<AuthResponse>(false, null, ex.Message));
-    }
-}
-
-/// <summary>
-/// Authenticate with OAuth ID token (for mobile/SPA clients)
-/// </summary>
-[HttpPost("oauth/token")]
-public async Task<ActionResult<ApiResponse<AuthResponse>>> OAuthToken([FromBody] OAuthTokenRequest request, CancellationToken cancellationToken)
-{
-    try
-    {
-        var result = await _oAuthService.ValidateIdTokenAsync(request, cancellationToken);
-
-        if (result == null)
-        {
-            return Unauthorized(new ApiResponse<AuthResponse>(false, null, "OAuth token validation failed."));
-        }
-
-        return Ok(new ApiResponse<AuthResponse>(true, result, "OAuth authentication successful."));
-    }
-    catch (ArgumentException ex)
-    {
-        return BadRequest(new ApiResponse<AuthResponse>(false, null, ex.Message));
-    }
-}
-```
-
-4. Add required using statements at the top of the file
-
-5. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-012
-
-**Status:** done
-**Task:** Register OAuth Services in DI Container
-**Files:** `src/DnDMapBuilder.Api/Program.cs`
-
-**Instructions:**
-
-1. Read the current Program.cs file
-
-2. Add OAuth settings configuration:
-
-```csharp
-builder.Services.Configure<OAuthSettings>(builder.Configuration.GetSection("OAuth"));
-```
-
-3. Register OAuth services:
-
-```csharp
-// OAuth Services
-builder.Services.AddHttpClient<GoogleOAuthService>();
-builder.Services.AddHttpClient<AppleOAuthService>();
-builder.Services.AddScoped<IOAuthService, OAuthService>();
-```
-
-4. Ensure the services are registered after other authentication services
-
-5. Add required using statements
-
-6. Verify build succeeds: `dotnet build`
-
----
-
-### STEP-OAUTH-BE-013
-
-**Status:** done
-**Task:** Update UserDto to Include OAuth Fields
-**Files:** `src/DnDMapBuilder.Contracts/DTOs/UserDto.cs`, `src/DnDMapBuilder.Application/Mappings/UserMappings.cs`
-
-**Instructions:**
-
-1. Update `UserDto.cs` to include OAuth fields:
-
-```csharp
-public record UserDto(
-    string Id,
-    string Username,
-    string Email,
-    string Role,
-    string Status,
-    string? OAuthProvider = null,
-    string? ProfilePictureUrl = null,
-    bool EmailVerified = false
-);
-```
-
-2. Update `UserMappings.cs` to map the new fields:
-
-```csharp
-public static UserDto ToDto(this User user)
-{
-    return new UserDto(
-        user.Id,
-        user.Username,
-        user.Email,
-        user.Role,
-        user.Status,
-        user.OAuthProvider,
-        user.ProfilePictureUrl,
-        user.EmailVerified
-    );
-}
-```
-
-3. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-014
-
-**Status:** done
-**Task:** Add CORS Configuration for OAuth
-**Files:** `src/DnDMapBuilder.Api/Program.cs`
-
-**Instructions:**
-
-1. Ensure CORS policy allows the frontend origin:
-
-```csharp
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins(
-                builder.Configuration["OAuth:FrontendRedirectUri"]?.TrimEnd('/') ?? "http://localhost:3000"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
-    });
-});
-```
-
-2. Apply CORS middleware (should already exist, verify it's before UseRouting):
-
-```csharp
-app.UseCors("AllowFrontend");
-```
-
-3. Verify build succeeds
-
----
-
-### STEP-OAUTH-BE-015
-
-**Status:** done
-**Task:** Write Unit Tests for OAuth Services
-**Files:** `tests/DnDMapBuilder.Application.Tests/Services/OAuthServiceTests.cs`
-
-**Instructions:**
-
-1. Create test file for OAuth service:
-
-```csharp
-using Xunit;
-using Moq;
-using DnDMapBuilder.Application.Services;
-using DnDMapBuilder.Application.Interfaces;
-using DnDMapBuilder.Data.Repositories.Interfaces;
-
-namespace DnDMapBuilder.Application.Tests.Services;
-
-public class OAuthServiceTests
-{
-    [Fact]
-    public async Task GetAuthorizationUrlAsync_Google_ReturnsValidUrl()
-    {
-        // Arrange & Act & Assert
-        // Test implementation
-    }
-
-    [Fact]
-    public async Task GetAuthorizationUrlAsync_Apple_ReturnsValidUrl()
-    {
-        // Test implementation
-    }
-
-    [Fact]
-    public async Task GetAuthorizationUrlAsync_InvalidProvider_ThrowsArgumentException()
-    {
-        // Test implementation
-    }
-
-    [Fact]
-    public async Task HandleOAuthCallbackAsync_ValidGoogleCode_ReturnsAuthResponse()
-    {
-        // Test implementation with mocked Google service
-    }
-
-    [Fact]
-    public async Task ValidateIdTokenAsync_ValidGoogleToken_CreatesNewUser()
-    {
-        // Test implementation
-    }
-
-    [Fact]
-    public async Task ValidateIdTokenAsync_ExistingUser_LinksOAuthProvider()
-    {
-        // Test implementation
-    }
-}
-```
-
-2. Run tests: `dotnet test`
-
----
-
-### STEP-OAUTH-BE-016
-
-**Status:** done
-**Task:** Update API Documentation
-**Files:** `API_DOCUMENTATION.md`
-
-**Instructions:**
-
-1. Add OAuth endpoints documentation:
-
-```markdown
-## OAuth Authentication
-
-### Get OAuth Authorization URL
-- **Endpoint**: `GET /api/v1/auth/oauth/{provider}/url`
-- **Parameters**:
-  - `provider` (path): OAuth provider ("google" or "apple")
-  - `redirectUri` (query, optional): Custom redirect URI
-- **Response**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "authorizationUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
-      "state": "random-state-string"
-    }
-  }
-  ```
-
-### OAuth Callback (Authorization Code Flow)
-- **Endpoint**: `POST /api/v1/auth/oauth/callback`
-- **Body**:
-  ```json
-  {
-    "provider": "google",
-    "code": "authorization-code-from-provider",
-    "redirectUri": "https://your-app.com/callback"
-  }
-  ```
-- **Response**: Same as login endpoint
-
-### OAuth Token Validation (For Mobile/SPA)
-- **Endpoint**: `POST /api/v1/auth/oauth/token`
-- **Body**:
-  ```json
-  {
-    "provider": "google",
-    "idToken": "id-token-from-google-sdk"
-  }
-  ```
-- **Response**: Same as login endpoint
-```
-
-2. Save changes
-
----
-
-### STEP-OAUTH-BE-017
-
-**Status:** done
-**Task:** Final Build and Integration Testing
-**Files:** All modified files
-
-**Instructions:**
-
-1. Run full build:
-```bash
-dotnet build
-```
-
-2. Run all tests:
-```bash
-dotnet test
-```
-
-3. Start the API:
-```bash
-dotnet run --project src/DnDMapBuilder.Api
-```
-
-4. Test OAuth URL generation:
-```bash
-curl http://localhost:5000/api/v1/auth/oauth/google/url
-```
-
-5. Verify Swagger documentation shows new endpoints
-
-6. Fix any remaining issues
-
----
-
-## Environment Variables Required
-
-For production deployment, ensure these environment variables are set:
-
-```
-OAuth__Google__ClientId=your-google-client-id
-OAuth__Google__ClientSecret=your-google-client-secret
-OAuth__Apple__ClientId=your-apple-client-id
-OAuth__Apple__TeamId=your-apple-team-id
-OAuth__Apple__KeyId=your-apple-key-id
-OAuth__Apple__PrivateKey=base64-encoded-private-key
-OAuth__RedirectUri=https://api.yourdomain.com/api/v1/auth/oauth/callback
-OAuth__FrontendRedirectUri=https://yourdomain.com
-```
-
----
-
-## Summary
-
-**Total Steps:** 17
-
-**Files Modified:**
-- 1 .csproj file (packages)
-- 1 Entity file
-- 1 Migration
-- 2 Configuration files
-- 3 Contract files (DTOs)
-- 1 Interface file
-- 4 Service files
-- 1 Controller file
-- 1 DI registration file
-- 1 Test file
-- 1 Documentation file
-
-**Key Features:**
-- Google OAuth support
-- Apple OAuth support
-- Authorization code flow
-- ID token validation (for mobile/SPA)
-- Automatic user creation
-- Account linking for existing users
-- CSRF protection via state parameter
+## Deployment Checklist
+
+1. Apply EF Core migration: `AddPublicationStatusToGameMap`
+2. Verify SignalR WebSocket support on hosting environment (Azure App Service, IIS, etc.)
+3. Configure CORS to allow frontend origin for SignalR connections
+4. Update firewall/load balancer to support WebSocket upgrade requests
+5. Test SignalR sticky sessions if using multiple server instances
+6. Configure logging/telemetry sink for production monitoring
+7. Set up health check endpoint to validate SignalR Hub registration
+
+## Future Enhancements (Out of Scope)
+
+1. **Fog of War**: Add visibility masks to hide map areas from players
+2. **Player Cursors**: Show multiple DM cursors if co-DMing
+3. **Audio/Video Integration**: Sync music/sound effects with map events
+4. **Mobile Live View**: Optimize live view UI for tablet displays
+5. **Map History/Replay**: Record map state changes for session replay
+6. **Performance Metrics Dashboard**: Real-time dashboard showing connection count, broadcast latency
+7. **Redis Backplane**: Scale SignalR across multiple servers using Redis for message distribution

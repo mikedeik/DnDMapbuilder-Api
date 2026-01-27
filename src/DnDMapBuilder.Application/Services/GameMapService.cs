@@ -4,11 +4,13 @@ using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Requests;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
+using PublicationStatusEntity = DnDMapBuilder.Data.Entities.PublicationStatus;
 
 namespace DnDMapBuilder.Application.Services;
 
 /// <summary>
 /// Service for GameMap business logic and CRUD operations.
+/// Does not handle publication status - that's managed by LiveMapService.
 /// </summary>
 public class GameMapService : IGameMapService
 {
@@ -72,6 +74,7 @@ public class GameMapService : IGameMapService
 
     /// <summary>
     /// Creates a new GameMap.
+    /// Maps are always created in Draft status - use LiveMapService to publish.
     /// </summary>
     /// <param name="request">Create map request</param>
     /// <param name="userId">The requesting user ID</param>
@@ -94,6 +97,7 @@ public class GameMapService : IGameMapService
             Cols = request.Cols,
             GridColor = request.GridColor,
             GridOpacity = request.GridOpacity,
+            PublicationStatus = PublicationStatusEntity.Draft,
             MissionId = request.MissionId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -105,6 +109,7 @@ public class GameMapService : IGameMapService
 
     /// <summary>
     /// Updates an existing GameMap.
+    /// Does not modify publication status - use LiveMapService.SetMapPublicationStatusAsync for that.
     /// </summary>
     /// <param name="id">The GameMap ID to update</param>
     /// <param name="request">Update map request</param>
