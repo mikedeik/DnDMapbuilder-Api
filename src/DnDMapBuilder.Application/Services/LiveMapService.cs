@@ -2,6 +2,7 @@ using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Mappings;
 using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Events;
+using DnDMapBuilder.Contracts.Interfaces;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
 using Microsoft.Extensions.Logging;

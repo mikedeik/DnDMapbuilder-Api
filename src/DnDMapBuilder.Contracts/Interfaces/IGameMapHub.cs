@@ -1,4 +1,4 @@
-namespace DnDMapBuilder.Application.Interfaces;
+namespace DnDMapBuilder.Contracts.Interfaces;
 
 /// <summary>
 /// Interface for broadcasting messages to SignalR clients.

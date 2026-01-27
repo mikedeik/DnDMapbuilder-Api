@@ -1,4 +1,4 @@
-using DnDMapBuilder.Application.Interfaces;
+using DnDMapBuilder.Contracts.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 
 namespace DnDMapBuilder.Api.Hubs;

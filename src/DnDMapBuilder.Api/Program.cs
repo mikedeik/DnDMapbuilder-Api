@@ -8,6 +8,7 @@ using DnDMapBuilder.Api.Hubs;
 using DnDMapBuilder.Application.Interfaces;
 using DnDMapBuilder.Application.Services;
 using DnDMapBuilder.Contracts.Configuration;
+using DnDMapBuilder.Contracts.Interfaces;
 using DnDMapBuilder.Data;
 using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;

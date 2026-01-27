@@ -1,3 +1,5 @@
+using DnDMapBuilder.Contracts.DTOs;
+
 namespace DnDMapBuilder.Contracts.Requests;
 
 /// <summary>
@@ -10,5 +12,6 @@ public record UpdateMapRequest(
     int Cols,
     List<MapTokenInstanceRequest> Tokens,
     string GridColor,
-    double GridOpacity
+    double GridOpacity,
+    PublicationStatus PublicationStatus = PublicationStatus.Draft
 );

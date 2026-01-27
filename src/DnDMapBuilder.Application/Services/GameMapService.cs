@@ -4,6 +4,8 @@ using DnDMapBuilder.Contracts.DTOs;
 using DnDMapBuilder.Contracts.Requests;
 using DnDMapBuilder.Data.Entities;
 using DnDMapBuilder.Data.Repositories.Interfaces;
+using PublicationStatusEntity = DnDMapBuilder.Data.Entities.PublicationStatus;
+using PublicationStatusDto = DnDMapBuilder.Contracts.DTOs.PublicationStatus;
 
 namespace DnDMapBuilder.Application.Services;
 
@@ -97,6 +99,7 @@ public class GameMapService : IGameMapService
             Cols = request.Cols,
             GridColor = request.GridColor,
             GridOpacity = request.GridOpacity,
+            PublicationStatus = (PublicationStatusEntity)(int)request.PublicationStatus,
             MissionId = request.MissionId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -127,12 +130,17 @@ public class GameMapService : IGameMapService
             return null;
         }
 
+        // Track if status changed to Live for broadcasting
+        var statusChangedToLive = map.PublicationStatus != PublicationStatusEntity.Live &&
+                                   request.PublicationStatus == PublicationStatusDto.Live;
+
         map.Name = request.Name;
         map.ImageUrl = request.ImageUrl;
         map.Rows = request.Rows;
         map.Cols = request.Cols;
         map.GridColor = request.GridColor;
         map.GridOpacity = request.GridOpacity;
+        map.PublicationStatus = (PublicationStatusEntity)(int)request.PublicationStatus;
         map.UpdatedAt = DateTime.UtcNow;
 
         // Update tokens
@@ -154,10 +162,19 @@ public class GameMapService : IGameMapService
 
         await _mapRepository.UpdateAsync(map, cancellationToken);
 
-        // Broadcast to live views if map is being live streamed
+        // Broadcast to live views
         if (_liveMapService != null)
         {
-            await _liveMapService.BroadcastMapUpdateAsync(id, cancellationToken);
+            // If status just changed to Live, broadcast the status change
+            if (statusChangedToLive)
+            {
+                await _liveMapService.SetMapPublicationStatusAsync(id, PublicationStatusDto.Live, userId, cancellationToken);
+            }
+            else
+            {
+                // Otherwise broadcast the map update if already Live
+                await _liveMapService.BroadcastMapUpdateAsync(id, cancellationToken);
+            }
         }
 
         var updatedMap = await _mapRepository.GetWithTokensAsync(id, cancellationToken);

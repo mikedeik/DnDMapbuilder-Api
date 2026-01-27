@@ -1,3 +1,5 @@
+using DnDMapBuilder.Contracts.DTOs;
+
 namespace DnDMapBuilder.Contracts.Requests;
 
 /// <summary>
@@ -10,5 +12,6 @@ public record CreateMapRequest(
     int Cols,
     string GridColor,
     double GridOpacity,
-    string MissionId
+    string MissionId,
+    PublicationStatus PublicationStatus = PublicationStatus.Draft
 );
