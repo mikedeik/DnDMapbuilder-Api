@@ -426,7 +426,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 9: Write Comprehensive Unit Tests for LiveMapService
 - **uniqueId**: `step-live-map-009`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Create full unit test suite for `LiveMapService` covering all broadcast methods, authorization checks, and edge cases. Follow existing test patterns with Moq and FluentAssertions.
 - **TDD Approach**:
   - **Test Cases**:
@@ -495,7 +495,7 @@ This implementation adds real-time map viewing capabilities for Dungeon Masters 
 
 ### Step 10: Write Integration Tests for SignalR Hub and Live Endpoints
 - **uniqueId**: `step-live-map-010`
-- **status**: `pending`
+- **status**: `done`
 - **description**: Create integration tests validating end-to-end SignalR connection lifecycle, JWT authentication flow, and live endpoint behavior using WebApplicationFactory pattern.
 - **TDD Approach**:
   - **Test Cases**:
