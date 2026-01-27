@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DnDMapBuilder.Application.Interfaces;
+using DnDMapBuilder.Infrastructure.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -14,17 +15,20 @@ public class GameMapHub : Hub
 {
     private readonly ILogger<GameMapHub> _logger;
     private readonly IGameMapService _gameMapService;
+    private readonly ITelemetryService _telemetry;
 
-    public GameMapHub(ILogger<GameMapHub> logger, IGameMapService gameMapService)
+    public GameMapHub(ILogger<GameMapHub> logger, IGameMapService gameMapService, ITelemetryService telemetry)
     {
         _logger = logger;
         _gameMapService = gameMapService;
+        _telemetry = telemetry;
     }
 
     public override Task OnConnectedAsync()
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var connectionId = Context.ConnectionId;
+        _telemetry.RecordSignalRConnection(connected: true);
         _logger.LogInformation("User {UserId} connected to GameMapHub (ConnectionId: {ConnectionId})", userId, connectionId);
         return base.OnConnectedAsync();
     }
@@ -33,6 +37,7 @@ public class GameMapHub : Hub
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var connectionId = Context.ConnectionId;
+        _telemetry.RecordSignalRConnection(connected: false);
         _logger.LogInformation("User {UserId} disconnected from GameMapHub (ConnectionId: {ConnectionId})", userId, connectionId);
         if (exception != null)
         {
@@ -54,6 +59,7 @@ public class GameMapHub : Hub
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId == null)
         {
+            _logger.LogWarning("Unauthorized join attempt to map group {MapId} - no userId in claims", mapId);
             throw new HubException("Unauthorized");
         }
 
@@ -61,6 +67,7 @@ public class GameMapHub : Hub
         var map = await _gameMapService.GetByIdAsync(mapId, userId, cancellationToken);
         if (map == null)
         {
+            _logger.LogWarning("User {UserId} denied access to map {MapId} - map not found or access denied", userId, mapId);
             throw new HubException("Map not found or access denied");
         }
 

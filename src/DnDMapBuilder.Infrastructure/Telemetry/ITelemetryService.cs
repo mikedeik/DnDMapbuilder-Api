@@ -69,4 +69,23 @@ public interface ITelemetryService
     /// <param name="activityName">Name of the activity</param>
     /// <returns>The created activity, or null if tracing is not enabled</returns>
     Activity? StartActivity(string activityName);
+
+    /// <summary>
+    /// Records a SignalR connection event.
+    /// </summary>
+    /// <param name="connected">Whether the connection was established or closed</param>
+    void RecordSignalRConnection(bool connected);
+
+    /// <summary>
+    /// Records a broadcast event for live map updates.
+    /// </summary>
+    /// <param name="eventType">Type of broadcast event (MapUpdated, TokenMoved, etc.)</param>
+    /// <param name="durationMs">Duration of the broadcast operation in milliseconds</param>
+    void RecordLiveMapBroadcast(string eventType, long durationMs);
+
+    /// <summary>
+    /// Records a publication status change.
+    /// </summary>
+    /// <param name="newStatus">The new publication status (Draft or Live)</param>
+    void RecordPublicationStatusChange(string newStatus);
 }

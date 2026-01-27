@@ -14,6 +14,7 @@ using DnDMapBuilder.Data.Repositories;
 using DnDMapBuilder.Data.Repositories.Interfaces;
 using DnDMapBuilder.Infrastructure.Configuration;
 using DnDMapBuilder.Infrastructure.Middleware;
+using DnDMapBuilder.Infrastructure.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,9 @@ builder.Services.AddSignalR();
 
 // Response Caching
 builder.Services.AddResponseCachingConfiguration();
+
+// Telemetry and Observability
+builder.Services.AddOpenTelemetryTracing(builder.Configuration, builder.Environment.IsDevelopment());
 
 // API Versioning
 builder.Services.AddApiVersioning(options =>

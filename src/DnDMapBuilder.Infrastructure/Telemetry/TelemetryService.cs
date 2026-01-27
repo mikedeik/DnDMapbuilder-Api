@@ -50,6 +50,13 @@ public class TelemetryService : ITelemetryService
     private readonly Histogram<long> _fileUploadDuration;
     private readonly Histogram<long> _fileUploadSize;
 
+    private readonly Meter _liveMapMeter;
+    private readonly Counter<int> _signalRConnectionsEstablished;
+    private readonly Counter<int> _signalRConnectionsClosed;
+    private readonly Counter<int> _liveMapBroadcasts;
+    private readonly Histogram<long> _liveMapBroadcastDuration;
+    private readonly Counter<int> _publicationStatusChanges;
+
     /// <summary>
     /// Initializes a new instance of the TelemetryService class.
     /// </summary>
@@ -65,6 +72,7 @@ public class TelemetryService : ITelemetryService
         _mapMeter = new Meter("DnDMapBuilder.MapOperations", "1.0.0");
         _tokenMeter = new Meter("DnDMapBuilder.TokenOperations", "1.0.0");
         _fileMeter = new Meter("DnDMapBuilder.FileOperations", "1.0.0");
+        _liveMapMeter = new Meter("DnDMapBuilder.LiveMapOperations", "1.0.0");
 
         // Initialize authentication counters
         _authenticationAttempts = _authenticationMeter.CreateCounter<int>(
@@ -163,6 +171,24 @@ public class TelemetryService : ITelemetryService
             "file.upload.size_bytes",
             unit: "bytes",
             description: "Size of uploaded files in bytes");
+
+        // Initialize live map counters and histograms
+        _signalRConnectionsEstablished = _liveMapMeter.CreateCounter<int>(
+            "signalr.connections.established.total",
+            description: "Total SignalR connections established");
+        _signalRConnectionsClosed = _liveMapMeter.CreateCounter<int>(
+            "signalr.connections.closed.total",
+            description: "Total SignalR connections closed");
+        _liveMapBroadcasts = _liveMapMeter.CreateCounter<int>(
+            "live_map.broadcasts.total",
+            description: "Total live map broadcast events");
+        _liveMapBroadcastDuration = _liveMapMeter.CreateHistogram<long>(
+            "live_map.broadcast.duration_ms",
+            unit: "ms",
+            description: "Duration of live map broadcast operations in milliseconds");
+        _publicationStatusChanges = _liveMapMeter.CreateCounter<int>(
+            "live_map.publication_status_changes.total",
+            description: "Total publication status changes");
     }
 
     public void RecordAuthenticationAttempt(int? userId, bool success, long durationMs)
@@ -282,5 +308,28 @@ public class TelemetryService : ITelemetryService
     public Activity? StartActivity(string activityName)
     {
         return _activitySource.StartActivity(activityName);
+    }
+
+    public void RecordSignalRConnection(bool connected)
+    {
+        if (connected)
+        {
+            _signalRConnectionsEstablished.Add(1);
+        }
+        else
+        {
+            _signalRConnectionsClosed.Add(1);
+        }
+    }
+
+    public void RecordLiveMapBroadcast(string eventType, long durationMs)
+    {
+        _liveMapBroadcasts.Add(1);
+        _liveMapBroadcastDuration.Record(durationMs, new KeyValuePair<string, object?>("event_type", eventType));
+    }
+
+    public void RecordPublicationStatusChange(string newStatus)
+    {
+        _publicationStatusChanges.Add(1);
     }
 }
